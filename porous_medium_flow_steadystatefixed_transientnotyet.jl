@@ -26,7 +26,7 @@ end;
 function Porous_medium(N_x,N_y,T_heat,steady_state,tend = 10)
 
 		#defining constants
-		k  = 100;
+		k  = 90;
 		g = [0 -1];
 		c = 0.001;
 		α = 0.01;
