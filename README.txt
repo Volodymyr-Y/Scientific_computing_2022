@@ -1,3 +1,6 @@
-This is a test
+# SciComp project
+## F. Sindy, V. Yelnyk, F. de Andres
 
-1 + 1 = 2
+### Porous medium heated from below 
+
+This is the project for the exam of the course Scientific Computing at TU Berlin (WiSe 2021/2022)
