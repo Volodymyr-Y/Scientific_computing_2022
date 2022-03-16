@@ -26,7 +26,7 @@ end;
 function Porous_medium(N_x,N_y,T_heat,steady_state,tend = 10)
 
 		#defining constants
-		k  = 90;
+		k  = 100;
 		g = [0 -1];
 		c = 0.001;
 		α = 0.01;
@@ -88,8 +88,8 @@ end
 # ╔═╡ 331e571c-ffa4-4a04-80b4-42565bda4921
 begin
 	tend = 0.1 #final time
-	steadystate = true #solving for steady state or transient depending on boolean value
-	grid,sol,nf = Porous_medium(300,150,0.5,steadystate,tend)
+	steadystate = false #solving for steady state or transient depending on boolean value
+	grid,sol,nf = Porous_medium(300,150,100,steadystate,tend)
 end
 
 # ╔═╡ 141f00d9-99e9-400a-a5c2-d2989cc0c85f
