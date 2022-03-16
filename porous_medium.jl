@@ -70,6 +70,7 @@ function Porous_medium(N_x,N_y,T_heat,steady_state,tend = 10)
 		flux=flux!,  
 		reaction = reaction!,
 		bcondition = bcondition!,
+		storage = storage!,
 	    species=[1,2])
 
 		if steady_state
@@ -87,9 +88,9 @@ end
 
 # ╔═╡ 331e571c-ffa4-4a04-80b4-42565bda4921
 begin
-	tend = 0.1 #final time
-	steadystate = false #solving for steady state or transient depending on boolean value
-	grid,sol,nf = Porous_medium(300,150,100,steadystate,tend)
+	tend = 600 #final time
+	steadystate = true #solving for steady state or transient depending
+	grid,sol,nf = Porous_medium(30, 15, 0.5, steadystate,tend)
 end
 
 # ╔═╡ 141f00d9-99e9-400a-a5c2-d2989cc0c85f
@@ -107,6 +108,12 @@ else
 	tsol = sol(t_plot);
 end
 
+# ╔═╡ 54a04bb3-ac8b-4ad1-8bf3-450f8995984d
+begin 
+	using DelimitedFiles
+	writedlm("SteadyPreMesh_1.csv",  tsol[1,:], ',')
+end
+
 # ╔═╡ 92c80dbe-ab43-4606-a287-771defd12f72
 begin#plotting pressure
 	vis1=GridVisualizer(size=(600,300),xlabel="x",legend=:rt);vis1
@@ -120,6 +127,9 @@ begin#plotting temperature
 	scalarplot!(vis2,grid,tsol[2,:],color=:red,label="u_2")
 	reveal(vis2)
 end
+
+# ╔═╡ 0f998a07-70b3-4366-a406-7dfd1396df39
+gridplot(grid,legend=:lt)
 
 # ╔═╡ 9d3add02-2daf-4ee6-87ae-b8fb7f1b1178
 begin
@@ -151,6 +161,7 @@ end
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 ExtendableGrids = "cfc395e8-590f-11e8-1f13-43a2532b2fa8"
 GridVisualize = "5eed8a63-0fb0-45eb-886d-8d5a387d12b8"
 HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
@@ -1057,8 +1068,10 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═483d49dd-06f6-467d-b05c-e06dc801a313
 # ╠═92c80dbe-ab43-4606-a287-771defd12f72
 # ╠═50ac52d2-9405-45e1-9160-d2cd5d388427
-# ╠═9d3add02-2daf-4ee6-87ae-b8fb7f1b1178
-# ╠═7f028b43-51c4-4d80-b11e-ce4e733a3a63
-# ╠═ef66a5fe-2967-4cb4-a346-52aa275f0baa
+# ╠═0f998a07-70b3-4366-a406-7dfd1396df39
+# ╠═54a04bb3-ac8b-4ad1-8bf3-450f8995984d
+# ╟─9d3add02-2daf-4ee6-87ae-b8fb7f1b1178
+# ╟─7f028b43-51c4-4d80-b11e-ce4e733a3a63
+# ╟─ef66a5fe-2967-4cb4-a346-52aa275f0baa
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
