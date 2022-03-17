@@ -5,7 +5,7 @@ using DifferentialEquations
 #using IterativeSolvers
 
 function get_system(N_x,N_y,BC_top,BC_bot)
-    λ =    10
+    λ =    100
     L_x = 300
     L_y = 150
     Δx = L_x/(N_x-1)
@@ -21,7 +21,7 @@ function get_system(N_x,N_y,BC_top,BC_bot)
     L_h = -λ*(A+B)
     f_h = zeros(N_x*(N_y-2))
     f_h[1:N_x] = BC_bot
-    f_h[end-N_x+1:end] = BC_top
+    f_h[N_x*(N_y-2)-N_x+1:end] = BC_top
     f_h = λ*f_h /(Δy^2)
     return L_h, f_h
 end
@@ -50,28 +50,29 @@ function produce_plot(u_h,N_x,N_y) # plot a function of 2 variables on given dom
     x = vec(transpose(x' .* ones(N_y)))
     y = LinRange(0, 150, N_y)
     y = vec(transpose(ones(N_x)' .* y))
-    plot(x, y, u_h,st = :surface,camera = (60,70))
-
+    p = plot(x, y, u_h,st = :surface,camera = (60,70))
+    display(p)
 end
 
 
 
 
-N_x = 40
-N_y = 20
-bc_top = 0*ones(N_x)
-bc_bot = 10*ones(N_x)
-bc_bot = 10*sin.(collect(1:N_x)/5)
+N_x = 80
+N_y = 40
+#bc_top = 0*ones(N_x)
+bc_top = 10*sin.(collect(1:N_x)/2)
+#bc_bot = 10*ones(N_x)
+bc_bot = 10*sin.(collect(1:N_x)/2)
 u0 = vcat(5*ones((N_y-2)*N_x÷2),0*ones((N_y-2)*N_x÷2))
 tspan = (0,10)
-#L_h,f_h = get_system(N_x,N_y,bc_top,bc_bot)
-#u_h = get_solution_temperature(bc_top, bc_bot,L_h,f_h)
+L_h,f_h = get_system(N_x,N_y,bc_top,bc_bot)
+u_h = get_solution_temperature(bc_top, bc_bot,L_h,f_h)
 #produce_plot(u_h,N_x,N_y)
 
-u_t = get_time_solution_temperature(N_x,N_y,bc_top,bc_bot,u0,tspan)
+#u_t = get_time_solution_temperature(N_x,N_y,bc_top,bc_bot,u0,tspan)
 println("sdd")
-
-
+produce_plot(u_h,N_x,N_y)
+"""
 @gif for u in u_t[:]
 
     x = LinRange(0, 300, N_x)
@@ -83,3 +84,4 @@ println("sdd")
     
 
 end
+"""
