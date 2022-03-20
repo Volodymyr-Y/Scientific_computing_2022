@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.15.1
+# v0.17.2
 
 using Markdown
 using InteractiveUtils
@@ -7,8 +7,9 @@ using InteractiveUtils
 # This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
         local el = $(esc(element))
-        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : missing
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
         el
     end
 end
@@ -31,10 +32,10 @@ begin
 	const ρ_ref = 1;
 	const T_ref = 0;
 	const P_ref = 0;
-end
+end;
 
 # ╔═╡ d119f14c-f863-47ce-82d3-02e52f9fd113
-function Porous_medium(N_x,N_y,T_heat,steady_state,tend = 10.0,dt! = 1.0)
+function Porous_medium(N_x,N_y,T_heat,steady_state,diffeq,method,tend = 10.0,dt! = 1.0)
 
 		#defining grid
 		X = collect(range(0,300,length=N_x))
@@ -49,16 +50,25 @@ function Porous_medium(N_x,N_y,T_heat,steady_state,tend = 10.0,dt! = 1.0)
 
 		#defining storage(what is under the timederivative)
 		function storage!(f,u,node)
-        	f[1]=0
+        	f[1]=ρ_ref
 			f[2]=c*u[2]
     	end
 	
 		#defining boundary conditions
 		function bcondition!(f,u,bnode)
-			v=ramp(bnode.time,du=(0,T_heat),dt=(0,1.0)) #only used when using built in transient solver to handle discontinuity in intial conditions and boundary conditions..
-			boundary_dirichlet!(f,u,bnode,species=2,region=1,value=v)
+			v=ramp(bnode.time,du=(0,T_heat),dt=(0,1.0)) 
+			if diffeq
+				boundary_dirichlet!(f,u,bnode,species=2,region=1,value=T_heat)
+			else
+				boundary_dirichlet!(f,u,bnode,species=2,region=1,value=v)
+			end
 			boundary_dirichlet!(f,u,bnode,species=2,region=3,value=0)
 			boundary_dirichlet!(f,u,bnode,species=1,region=3,value=0)
+			boundary_neumann!(f,u,bnode,species=2,region=2,value=0)
+			boundary_neumann!(f,u,bnode,species=2,region=4,value=0)
+			boundary_neumann!(f,u,bnode,species=1,region=2,value=0)
+			boundary_neumann!(f,u,bnode,species=1,region=3,value=0)
+			boundary_neumann!(f,u,bnode,species=1,region=4,value=0)
 		end
 	
 		#defining voronoi system
@@ -75,15 +85,15 @@ function Porous_medium(N_x,N_y,T_heat,steady_state,tend = 10.0,dt! = 1.0)
 			return grid,sol,nf
 		else
 			#solving transient solution
+			if diffeq
+				inival=unknowns(system,inival=0)
+				problem = ODEProblem(system,inival,(0.0,tend))
+				odesol = DifferentialEquations.solve(problem,method,dt = dt!,adaptive = false)
+				sol=reshape(odesol,system)
+			else
+				sol=VoronoiFVM.solve(system,inival = 0,times=(0,tend),Δu_opt=T_heat,Δt_min=dt!*0.1, Δt=dt!)	
 			
-		
-			# if you want to do differential equations.jl comment line below out and uncomment next four lines. Furthermore I have chosen Rosenbrock23 but look at documentation for other implicit(why? because unconditionally stable, I think) stiffly accurate timesstepping method
-			sol=VoronoiFVM.solve(system,inival = 0,times=(0,tend),Δu_opt=T_heat,Δt_min=dt!*0.1, Δt=dt!)	
-			
-			#inival=unknowns(system,inival=0)
-			#problem = ODEProblem(system,inival,(0.0,tend))
-			#odesol = DifferentialEquations.solve(problem,Rosenbrock23(),dt = dt!,adaptive = false)
-			#sol=reshape(odesol,system)
+			end
 
 			nf = []
 			for t in 0:dt!:tend
@@ -96,10 +106,17 @@ end
 # ╔═╡ 331e571c-ffa4-4a04-80b4-42565bda4921
 begin
 	tend = 10.0 #final time !!always use float
-	dt = 1.0 #stepsize !!always use float 
+	dt = 0.1 #stepsize !!always use float 
 	steadystate = false #solving for steady state or transient depending on boolean value
-	T_heat = 10.0
-	grid,sol,nf = Porous_medium(68,34,T_heat,steadystate,tend,dt)
+	use_diffeq_jl = true
+	method = ImplicitEuler() #only when above is true
+	#other nice methods:
+	#Rosenbrock23(),
+	#RadauIIA3(),
+	#ImplicitEuler(),
+	#to see wave behaviour a.k.a when you use explicit method Trapezoid(), ImplicitMidpoint()
+	T_heat = 0.5
+	grid,sol,nf = Porous_medium(68,34,T_heat,steadystate,use_diffeq_jl,method,tend,dt)
 	println(typeof(sol))
 end
 
@@ -129,14 +146,14 @@ end
 
 # ╔═╡ 92c80dbe-ab43-4606-a287-771defd12f72
 begin#plotting pressure
-	vis1=GridVisualizer(size=(600,300),xlabel="x",legend=:rt);vis1
+	vis1=GridVisualizer(size=(600,600),xlabel="x",legend=:rt);vis1
 	scalarplot!(vis1,grid,tsol[1,:],color=:red,label="u_1")
 	reveal(vis1)
 end
 
 # ╔═╡ 50ac52d2-9405-45e1-9160-d2cd5d388427
 begin#plotting temperature
-	vis2=GridVisualizer(size=(600,300),xlabel="x",legend=:rt);vis2
+	vis2=GridVisualizer(size=(600,600),xlabel="x",legend=:rt);vis2
 	scalarplot!(vis2,grid,tsol[2,:],color=:red,label="u_2")
 	reveal(vis2)
 end
@@ -167,14 +184,6 @@ end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
-[compat]
-DifferentialEquations = "~7.1.0"
-ExtendableGrids = "~0.9.1"
-GridVisualize = "~0.5.1"
-PlutoUI = "~0.7.37"
-PlutoVista = "~0.8.12"
-VoronoiFVM = "~0.16.2"
-
 [deps]
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
@@ -183,6 +192,14 @@ GridVisualize = "5eed8a63-0fb0-45eb-886d-8d5a387d12b8"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 PlutoVista = "646e1f28-b900-46d7-9d87-d554eb38a413"
 VoronoiFVM = "82b139dc-5afc-11e9-35da-9b9bdfd336f3"
+
+[compat]
+DifferentialEquations = "~7.1.0"
+ExtendableGrids = "~0.9.1"
+GridVisualize = "~0.5.1"
+PlutoUI = "~0.7.37"
+PlutoVista = "~0.8.12"
+VoronoiFVM = "~0.16.2"
 
 [extras]
 CPUSummary = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"
@@ -1414,10 +1431,10 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═340720e1-5ede-4cd7-b1c0-6aa066aa1331
 # ╠═d119f14c-f863-47ce-82d3-02e52f9fd113
 # ╠═331e571c-ffa4-4a04-80b4-42565bda4921
-# ╠═141f00d9-99e9-400a-a5c2-d2989cc0c85f
+# ╟─141f00d9-99e9-400a-a5c2-d2989cc0c85f
 # ╠═483d49dd-06f6-467d-b05c-e06dc801a313
-# ╟─92c80dbe-ab43-4606-a287-771defd12f72
-# ╟─50ac52d2-9405-45e1-9160-d2cd5d388427
+# ╠═92c80dbe-ab43-4606-a287-771defd12f72
+# ╠═50ac52d2-9405-45e1-9160-d2cd5d388427
 # ╠═0f998a07-70b3-4366-a406-7dfd1396df39
 # ╠═54a04bb3-ac8b-4ad1-8bf3-450f8995984d
 # ╟─7f028b43-51c4-4d80-b11e-ce4e733a3a63
