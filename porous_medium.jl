@@ -21,12 +21,6 @@ begin
 	GridVisualize.default_plotter!(PlutoVista)
 end;
 
-# ╔═╡ 54a04bb3-ac8b-4ad1-8bf3-450f8995984d
-begin 
-	using DelimitedFiles
-	# writedlm("SteadyPreMesh_1.csv",  tsol[1,:], ',')
-end
-
 # ╔═╡ 18c3a1f0-5ce4-4fcb-bf8c-061e4d6d485d
 TableOfContents()
 
@@ -46,6 +40,116 @@ begin
 	const T_ref = 0;
 	const P_ref = 0;
 end;
+
+# ╔═╡ 14dcce2e-99ca-4bd8-b357-fb260de9caad
+md"""
+# Mesh independence study
+"""
+
+# ╔═╡ 0e8be14b-221d-459d-9563-c6ec65a21e48
+md"""
+### Parametric study definition
+
+We use the average pressure (mean of the pressure distribution) in the steady case with T_heat = 0.5 as the error-flag parameter
+"""
+
+# ╔═╡ bc2febeb-2b89-4cfc-a28e-adb19182334f
+begin
+	Nx  = [13, 20, 30, 45, 68, 102, 151]
+	Ny  = [7,  10, 15, 23, 34, 51,   77]
+	N   = Nx .* Ny
+	nn  = size(Nx, 1)
+	
+	err        = zeros(nn)
+	presVector = zeros(nn)
+end;
+
+# ╔═╡ 6f927c3e-5a61-4773-94f9-68b62a257f8b
+md"""
+### Results
+"""
+
+# ╔═╡ ff14e1b6-cbf1-4183-b568-2e4b29e44565
+begin
+	PyPlot.clf()
+	PyPlot.semilogx(N[2:end], err[2:end], color="k", marker="s")
+	PyPlot.plot([0, 1e5], [0.001, 0.001], color = "r", linestyle= "-.")
+
+	PyPlot.ticklabel_format(axis="y", style="scientific", scilimits=(-3, 0), useOffset=false)
+	PyPlot.tick_params(direction= "in", which= "minor", length= 2, bottom= true, top= true, right= true, left= true)
+    PyPlot.tick_params(direction= "in", which= "major", length= 4, bottom= true, top= true, right= true, left=true)
+
+	
+	PyPlot.grid(which="major")
+	PyPlot.grid(which="minor", linestyle= "--")
+	
+	PyPlot.xlabel("number of nodes (-)")
+	PyPlot.ylabel("error (-)")
+	PyPlot.xlim([1.5e2, 1.5e4])
+	
+	figure = PyPlot.gcf()
+end
+
+# ╔═╡ f6dfa868-c401-437b-8feb-0f7cb4cb98eb
+begin
+	N_x = 70
+	N_y = 35
+end;
+
+# ╔═╡ 40927741-b807-4ea5-9ab9-cfd38428c627
+md"""
+# Solutions
+"""
+
+# ╔═╡ 25d36996-ccf3-4a10-86fa-2d36573fb9be
+md"""
+## Case configuration
+"""
+
+# ╔═╡ 30caf439-8b78-4a72-a109-c32f944c2b32
+md"""
+### Time discretization
+"""
+
+# ╔═╡ 952a8698-77a2-4d0d-8eb5-674bbd58016e
+begin
+	dt!        = 1
+	tend       = 500
+	diffeqFlag = true
+	method     = ImplicitEuler()
+	# Other nice methods:
+	#    Rosenbrock23(),
+	#    RadauIIA3(),
+	#    ImplicitEuler(),
+	#
+	# To see wave behaviour a.k.a when you use explicit method, use 
+	#    Trapezoid(), 
+	#    ImplicitMidpoint()
+end;
+
+# ╔═╡ 8db716bb-8ba7-4ad7-aca6-69b8159cfdb7
+md"""
+	Compute only **steady state**: $(@bind steadyState CheckBox())
+	"""	
+
+# ╔═╡ e53114df-f15e-48af-93d4-56fd889b56a1
+if steadyState
+else	
+	
+	md"""
+	t = $(@bind t_plot Slider(0:dt!:tend,default=5))
+	"""	
+end
+
+# ╔═╡ d8f8525f-f992-4f32-9bdc-30ee6f67b334
+md"""
+### Boundary condition
+"""
+
+# ╔═╡ 9b657187-b79e-497c-930f-331a54be8213
+md"""
+	T$_{heat}$ at $\Gamma_{bottom} :\quad$ 	 $(@bind T_heat Select([0, 0.5, 1, 2, 5, 10], default = 0.5))
+	"""	
 
 # ╔═╡ d119f14c-f863-47ce-82d3-02e52f9fd113
 """
@@ -170,34 +274,6 @@ function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag = false
 		end
 end
 
-# ╔═╡ 14dcce2e-99ca-4bd8-b357-fb260de9caad
-md"""
-# Mesh independence study
-"""
-
-# ╔═╡ 0e8be14b-221d-459d-9563-c6ec65a21e48
-md"""
-### Parametric study definition
-
-We use the average pressure (mean of the pressure distribution) in the steady case with T_heat = 0.5 as the error-flag parameter
-"""
-
-# ╔═╡ bc2febeb-2b89-4cfc-a28e-adb19182334f
-begin
-	Nx  = [13, 20, 30, 45, 68, 102, 151]
-	Ny  = [7,  10, 15, 23, 34, 51,   77]
-	N   = Nx .* Ny
-	nn  = size(Nx, 1)
-	
-	err        = zeros(nn)
-	presVector = zeros(nn)
-end;
-
-# ╔═╡ 6f927c3e-5a61-4773-94f9-68b62a257f8b
-md"""
-### Results
-"""
-
 # ╔═╡ 6d4a1cdd-40a8-4d48-9080-499f4733135f
 begin
 	for idx in 1:nn
@@ -226,55 +302,36 @@ begin
 	end 
 end;
 
-# ╔═╡ ff14e1b6-cbf1-4183-b568-2e4b29e44565
-begin
-	PyPlot.clf()
-	PyPlot.semilogx(N[2:end], err[2:end], color="k", marker="s")
-	PyPlot.plot([0, 1e5], [0.001, 0.001], color = "r", linestyle= "-.")
-
-	PyPlot.ticklabel_format(axis="y", style="scientific", scilimits=(-3, 0), useOffset=false)
-	PyPlot.tick_params(direction= "in", which= "minor", length= 2, bottom= true, top= true, right= true, left= true)
-    PyPlot.tick_params(direction= "in", which= "major", length= 4, bottom= true, top= true, right= true, left=true)
-
-	
-	PyPlot.grid(which="major")
-	PyPlot.grid(which="minor", linestyle= "--")
-	
-	PyPlot.xlabel("number of nodes (-)")
-	PyPlot.ylabel("error (-)")
-	PyPlot.xlim([1.5e2, 1.5e4])
-	
-	figure = PyPlot.gcf()
+# ╔═╡ 81b37c51-0626-48de-980a-6f5a6ec440dd
+if steadyState
+	md"""
+	## Steady state solver
+	"""
+else
+	md"""
+	## Transient problem solver
+	"""
 end
 
-# ╔═╡ 40927741-b807-4ea5-9ab9-cfd38428c627
-md"""
-# Solutions
-"""
-
-# ╔═╡ 81b37c51-0626-48de-980a-6f5a6ec440dd
-md"""
-## Steady state
-"""
-
 # ╔═╡ 331e571c-ffa4-4a04-80b4-42565bda4921
-begin
-	steadystate   = true 
+grid, sol, nf = porousMedium(N_x, N_y, T_heat, 
+	                         steadyState, 
+	                         diffeqFlag, ImplicitEuler(), tend, dt!);
 
-	
-	# Other nice methods:
-	#    Rosenbrock23(),
-	#    RadauIIA3(),
-	#    ImplicitEuler(),
-	#
-	# To see wave behaviour a.k.a when you use explicit method, use 
-	#    Trapezoid(), 
-	#    ImplicitMidpoint()
-	
-	Tₕₑₐₜ = 0.5
-	
-	grid,sol,nf = porousMedium(68,34, Tₕₑₐₜ,steadystate)
+# ╔═╡ 8c484e8b-089d-4f01-91e0-f06ad8f0c7f1
+if steadyState
+	tsol = sol
+	tnf  = nf
+else	
+	tsol  = sol(t_plot)
+	index = convert(Int64, round((tend/dt!*t_plot/tend), digits=0))+1
+	tnf   = nf[index]
+end;
 
+# ╔═╡ a39f1f1a-f697-400e-bf71-b7297ea4e443
+begin 
+	using DelimitedFiles
+	writedlm("tri_grid_70_35_steady_Temperature_10.csv",  tsol[2,:], ',')
 end;
 
 # ╔═╡ 5caccc73-0e3e-4be5-bfd7-ac8d5819f62f
@@ -282,70 +339,117 @@ md"""
 ### Temperature and pressure maps
 """
 
-# ╔═╡ 1e4369a3-8029-418f-bd3b-f228a73fc76b
-md"""
-## Transient
-"""
-
-# ╔═╡ 9f774193-0b1d-41b6-b747-0de34e26b409
-begin
-	diffeqFlag = true
-	method     = ImplicitEuler()
-	tend       = 10.0
-	dt!        = 1.0
-
-	
-	# Other nice methods:
-	#    Rosenbrock23(),
-	#    RadauIIA3(),
-	#    ImplicitEuler(),
-	#
-	# To see wave behaviour a.k.a when you use explicit method, use 
-	#    Trapezoid(), 
-	#    ImplicitMidpoint()
-	
-	
-	_,transientSol,transientnf = porousMedium(68,34, Tₕₑₐₜ, false,  
-		                         diffeqFlag,method,tend,dt!)
-
-end;
-
-# ╔═╡ 141f00d9-99e9-400a-a5c2-d2989cc0c85f
-if steadystate
-else	
+# ╔═╡ 8b171cb5-aaf3-41fc-ba6b-8ad847ea3f8d
+if steadyState
 	md"""
-	t= $(@bind t_plot Slider(0:dt:tend,default=0))
-	"""	
+	**Pressure distribution**
+	"""
+else 
+	md"""
+	**Pressure distribution** at t= $(string(t_plot)) s
+	"""
 end
 
-# ╔═╡ 483d49dd-06f6-467d-b05c-e06dc801a313
-if steadystate
-	tsol = sol;
-	tnf = nf;
-else	
-	tsol = sol(t_plot);
-	index = convert(Int64, round((tend/dt*t_plot/tend), digits=0))+1;
-	tnf  = nf[index];
-end;
+# ╔═╡ 92c80dbe-ab43-4606-a287-771defd12f72
+begin#plotting pressure
+	vis1 = GridVisualizer(size=(600,600),
+		                  xlabel="x",
+						  ylabel = "y",
+	                      title = "pressure");
+	
+	scalarplot!(vis1, grid, tsol[1,:],colormap=:viridis)
 
-# ╔═╡ 3385c501-68a6-46ba-9594-e937c65bbe23
+	reveal(vis1)
+end
+
+# ╔═╡ 6cbcb632-92fb-46ea-b8b3-f6b0373fc818
+if steadyState
+	md"""
+	**Temperature distribution**
+	"""
+else 
+	md"""
+	**Temperature distribution** at t= $(string(t_plot)) s
+	"""
+end
+
+# ╔═╡ 50ac52d2-9405-45e1-9160-d2cd5d388427
 begin
-	x    = collect(range(0, 300, length = 68))
-	y    = collect(range(0, 150, length = 34))
+	vis2=GridVisualizer(size=(600,600),xlabel="x",legend=:rt);vis2
+	scalarplot!(vis2,grid,tsol[2,:],colormap=:hot, label="u_2")
+	reveal(vis2)
+end
 
-	X    = x' .* ones(34)
-	Y    = ones(68)' .* y
+# ╔═╡ 172c23cd-5fbf-4405-b4a1-15db2199e7f7
+md"""
+### Flux plots
+"""
+
+# ╔═╡ daa3d04b-5a34-47f8-94ed-5930f4389f3a
+md"""
+**X-direction**
+"""
+
+# ╔═╡ 7f028b43-51c4-4d80-b11e-ce4e733a3a63
+begin#plotting q in x direction
+	vis3=GridVisualizer(size=(600,300),xlabel="x",legend=:rt);vis3
+	scalarplot!(vis3,grid,-ρ_ref*k*tnf[1,1,:],color=:red,label="u_2")
+	reveal(vis3)
+end
+
+# ╔═╡ 7a335060-d39b-48e9-966c-dcbd788def65
+md"""
+**Y-direction**
+"""
+
+# ╔═╡ ef66a5fe-2967-4cb4-a346-52aa275f0baa
+begin#plotting q in y direction
+	vis4=GridVisualizer(size=(600,300),xlabel="x",legend=:rt);vis4
+	scalarplot!(vis4,grid,-ρ_ref*k*(tnf[2,1,:].+ρ_ref.-α*(tsol[2,:].-T_ref)),color=:red,label="u_2")
+	reveal(vis4)
+end
+
+# ╔═╡ d1359573-87e5-4b42-9f29-dd12e4a0a223
+md"""
+### Density plot
+"""
+
+# ╔═╡ b0f33228-9cda-4fe6-a95f-8c49e1f55032
+begin#plotting density
+	vis5=GridVisualizer(size=(600,300),xlabel="x",legend=:rt);vis5
+	scalarplot!(vis5,grid,ρ_ref.- α*(tsol[2,:].-T_ref),color=:red,label="u_2")
+	reveal(vis5)
+end
+
+# ╔═╡ 4f926fc9-fc55-40f4-b08a-033acf32edf2
+md"""
+### Data export
+"""
+
+# ╔═╡ ce222158-26ce-4d96-95b3-3187749c0778
+md"""
+### Bonus: Publication-quality plot example
+"""
+
+# ╔═╡ 2ff069f4-8306-4500-9db1-b3b247db758f
+begin
+	x    = collect(range(0, 300, length = N_x))
+	y    = collect(range(0, 150, length = N_y))
+
+	X    = x' .* ones(N_y)
+	Y    = ones(N_x)' .* y
 	
 	PyPlot.clf()
 
 	ax = PyPlot.axes()
 	ax.set_aspect("equal")
 	
-	PyPlot.contourf(X, Y, reshape(tsol[1,:], (68, 34))')
+	PyPlot.contourf(X, Y, reshape(tsol[1,:], (N_x, N_y))', levels = 20)
+
+	PyPlot.set_cmap("RdBu_r")
 
 
-
-	PyPlot.suptitle("Steady state pressure distribution")
+	PyPlot.suptitle("Steady state pressure distribution for T(heat)= " *string(T_heat) )
 
 	PyPlot.tick_params(direction= "in", which= "minor", length= 2, bottom= true, top= true, right= true, left= true)
     PyPlot.tick_params(direction= "in", which= "major", length= 4, bottom= true, top= true, right= true, left=true)
@@ -360,46 +464,6 @@ begin
 	
 	PyPlot.gcf()
 
-end
-
-# ╔═╡ 92c80dbe-ab43-4606-a287-771defd12f72
-begin#plotting pressure
-	vis1 = GridVisualizer(size=(600,600),
-		                  xlabel="x",
-						  ylabel = "y",
-	                      title = "pressure");
-	
-	scalarplot!(vis1, grid, tsol[1,:],colormap=:viridis, levels=0:0.1:0.4)
-
-	reveal(vis1)
-end
-
-# ╔═╡ 50ac52d2-9405-45e1-9160-d2cd5d388427
-begin#plotting temperature
-	vis2=GridVisualizer(size=(600,600),xlabel="x",legend=:rt);vis2
-	scalarplot!(vis2,grid,tsol[2,:],colormap=:hot,levels=0:0.1:0.5, label="u_2")
-	reveal(vis2)
-end
-
-# ╔═╡ 7f028b43-51c4-4d80-b11e-ce4e733a3a63
-begin#plotting q in x direction
-	vis3=GridVisualizer(size=(600,300),xlabel="x",legend=:rt);vis3
-	scalarplot!(vis3,grid,-ρ_ref*k*tnf[1,1,:],color=:red,label="u_2")
-	reveal(vis3)
-end
-
-# ╔═╡ ef66a5fe-2967-4cb4-a346-52aa275f0baa
-begin#plotting q in y direction
-	vis4=GridVisualizer(size=(600,300),xlabel="x",legend=:rt);vis4
-	scalarplot!(vis4,grid,-ρ_ref*k*(tnf[2,1,:].+ρ_ref.-α*(tsol[2,:].-T_ref)),color=:red,label="u_2")
-	reveal(vis4)
-end
-
-# ╔═╡ b0f33228-9cda-4fe6-a95f-8c49e1f55032
-begin#plotting density
-	vis5=GridVisualizer(size=(600,300),xlabel="x",legend=:rt);vis5
-	scalarplot!(vis5,grid,ρ_ref.- α*(tsol[2,:].-T_ref),color=:red,label="u_2")
-	reveal(vis5)
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -1690,20 +1754,33 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╟─6f927c3e-5a61-4773-94f9-68b62a257f8b
 # ╠═6d4a1cdd-40a8-4d48-9080-499f4733135f
 # ╟─ff14e1b6-cbf1-4183-b568-2e4b29e44565
+# ╠═f6dfa868-c401-437b-8feb-0f7cb4cb98eb
 # ╟─40927741-b807-4ea5-9ab9-cfd38428c627
+# ╟─25d36996-ccf3-4a10-86fa-2d36573fb9be
+# ╟─30caf439-8b78-4a72-a109-c32f944c2b32
+# ╠═952a8698-77a2-4d0d-8eb5-674bbd58016e
+# ╟─8db716bb-8ba7-4ad7-aca6-69b8159cfdb7
+# ╟─e53114df-f15e-48af-93d4-56fd889b56a1
+# ╟─d8f8525f-f992-4f32-9bdc-30ee6f67b334
+# ╟─9b657187-b79e-497c-930f-331a54be8213
 # ╟─81b37c51-0626-48de-980a-6f5a6ec440dd
 # ╠═331e571c-ffa4-4a04-80b4-42565bda4921
-# ╟─141f00d9-99e9-400a-a5c2-d2989cc0c85f
-# ╠═483d49dd-06f6-467d-b05c-e06dc801a313
+# ╠═8c484e8b-089d-4f01-91e0-f06ad8f0c7f1
 # ╟─5caccc73-0e3e-4be5-bfd7-ac8d5819f62f
-# ╟─3385c501-68a6-46ba-9594-e937c65bbe23
+# ╟─8b171cb5-aaf3-41fc-ba6b-8ad847ea3f8d
 # ╟─92c80dbe-ab43-4606-a287-771defd12f72
-# ╠═50ac52d2-9405-45e1-9160-d2cd5d388427
-# ╠═54a04bb3-ac8b-4ad1-8bf3-450f8995984d
+# ╟─6cbcb632-92fb-46ea-b8b3-f6b0373fc818
+# ╟─50ac52d2-9405-45e1-9160-d2cd5d388427
+# ╟─172c23cd-5fbf-4405-b4a1-15db2199e7f7
+# ╟─daa3d04b-5a34-47f8-94ed-5930f4389f3a
 # ╟─7f028b43-51c4-4d80-b11e-ce4e733a3a63
+# ╟─7a335060-d39b-48e9-966c-dcbd788def65
 # ╟─ef66a5fe-2967-4cb4-a346-52aa275f0baa
+# ╟─d1359573-87e5-4b42-9f29-dd12e4a0a223
 # ╟─b0f33228-9cda-4fe6-a95f-8c49e1f55032
-# ╟─1e4369a3-8029-418f-bd3b-f228a73fc76b
-# ╠═9f774193-0b1d-41b6-b747-0de34e26b409
+# ╟─4f926fc9-fc55-40f4-b08a-033acf32edf2
+# ╠═a39f1f1a-f697-400e-bf71-b7297ea4e443
+# ╟─ce222158-26ce-4d96-95b3-3187749c0778
+# ╟─2ff069f4-8306-4500-9db1-b3b247db758f
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
