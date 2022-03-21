@@ -15,55 +15,115 @@ macro bind(def, element)
 end
 
 # ╔═╡ 4a55ed84-a2e9-11ec-3f65-4f384565073e
-#loading packages
 begin 
-	using PlutoUI,ExtendableGrids,VoronoiFVM,GridVisualize, PlutoVista, DifferentialEquations
+	using PlutoUI,ExtendableGrids,VoronoiFVM,GridVisualize, PlutoVista, DifferentialEquations, Statistics, PyPlot
+	
 	GridVisualize.default_plotter!(PlutoVista)
 end;
 
+# ╔═╡ 54a04bb3-ac8b-4ad1-8bf3-450f8995984d
+begin 
+	using DelimitedFiles
+	# writedlm("SteadyPreMesh_1.csv",  tsol[1,:], ',')
+end
+
+# ╔═╡ 18c3a1f0-5ce4-4fcb-bf8c-061e4d6d485d
+TableOfContents()
+
+# ╔═╡ bf522f6e-cb61-4e6e-b0bd-609a38b150a8
+md"""
+# Packages and definitions
+"""
+
 # ╔═╡ 340720e1-5ede-4cd7-b1c0-6aa066aa1331
 begin
-	#defining constants
-	const k  = 100;
-	const g = [0 -1];
-	const c = 0.001;
-	const α = 0.01;
-	const λ = 0.01;
+	const k     = 100;
+	const g     = [0 -1];
+	const c     = 0.001;
+	const α     = 0.01;
+	const λ     = 0.01;
 	const ρ_ref = 1;
 	const T_ref = 0;
 	const P_ref = 0;
 end;
 
 # ╔═╡ d119f14c-f863-47ce-82d3-02e52f9fd113
-function Porous_medium(N_x,N_y,T_heat,steady_state,diffeq,method,tend = 10.0,dt! = 1.0)
+"""
+Numerically solves a porous medium problem heated from below, modelled through
+a system of Darcy's equation for flow in a porous medium saturated with water 
+and convective heat equation. It assumes a rectangular domain. 
 
-		#defining grid
-		X = collect(range(0,300,length=N_x))
-		Y = collect(range(0,150,length=N_y))
-		grid=simplexgrid(X,Y)	
+ **Created by**:   F. Sindy, V. Yelnyk, F. de Andrés\\
+ **Last edited**:  (03.2022)
 
-		#defining flux
-		function flux!(f,u, edge)
+
+ **Input**:
+
+	Ni: {Int}
+        Number of gridpoints on each direction (i = {x,y}).
+
+    Tₕₑₐₜ: {Scalar}
+		Temperature boundary condition.
+
+    steadyStateFlag: {Bool}
+        If true, the steady state problem is solved. It false, the transient. 
+
+    diffeqFlag: {Bool}
+        If trhe, alternative timestepping methods are from the package
+        DifferentialEquations.jl is used.
+
+	method: {Function}
+		Timestepping method. 
+
+    tend: {Float}, optional
+        Final time. The default is 10.
+
+	dt!: {Float}, optional
+		Timestep. The default is 1.
+
+ **Output**:
+
+    grid: {ExtendableGrids.ExtendableGrid} 
+		Mesh.
+
+	sol: {VoronoiFVM.TransientSolution}
+		Problem solution.
+
+	nf: {Vector}
+		Species flux.
+"""
+function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag, method, tend = 10.0, dt! = 1.0)
+
+		# Grid definition
+		X    = collect(range(0, 300, length = Nx))
+		Y    = collect(range(0, 150, length = Ny))
+		grid = simplexgrid(X,Y)	
+
+		
+		function flux!(f, u, edge)
 			f[1] = -ρ_ref*k*(u[1,1]-u[1,2] +α*0.5*(u[2,1]+u[2,2])*project(edge,g))
 			f[2] = λ*(u[2,1] - u[2,2])
 		end
 
-		#defining storage(what is under the timederivative)
-		function storage!(f,u,node)
-        	f[1]=ρ_ref
-			f[2]=c*u[2]
+		function storage!(f, u, node)
+        	f[1] = ρ_ref
+			f[2] = c*u[2]
     	end
 	
-		#defining boundary conditions
-		function bcondition!(f,u,bnode)
-			v=ramp(bnode.time,du=(0,T_heat),dt=(0,1.0)) 
-			if diffeq
-				boundary_dirichlet!(f,u,bnode,species=2,region=1,value=T_heat)
+		# Boundary conditions definition
+		function bcondition!(f, u, bnode)
+			
+			v = ramp(bnode.time,du=(0,Tₕₑₐₜ),dt=(0,1.0)) 
+			
+			if diffeqFlag
+				boundary_dirichlet!(f,u,bnode,species=2,region=1,value= Tₕₑₐₜ)
 			else
-				boundary_dirichlet!(f,u,bnode,species=2,region=1,value=v)
+				boundary_dirichlet!(f,u,bnode,species=2,region=1,value= v)
 			end
+			
 			boundary_dirichlet!(f,u,bnode,species=2,region=3,value=0)
 			boundary_dirichlet!(f,u,bnode,species=1,region=3,value=0)
+			
 			boundary_neumann!(f,u,bnode,species=2,region=2,value=0)
 			boundary_neumann!(f,u,bnode,species=2,region=4,value=0)
 			boundary_neumann!(f,u,bnode,species=1,region=2,value=0)
@@ -71,54 +131,152 @@ function Porous_medium(N_x,N_y,T_heat,steady_state,diffeq,method,tend = 10.0,dt!
 			boundary_neumann!(f,u,bnode,species=1,region=4,value=0)
 		end
 	
-		#defining voronoi system
-		system=VoronoiFVM.System(grid; 
-		flux=flux!,  
-		bcondition = bcondition!,
-		storage = storage!,
-	    species=[1,2])
+		# Voronoi system definiion
+		system = VoronoiFVM.System(grid; 
+		                           flux=flux!,  
+		                           bcondition = bcondition!,
+		                           storage = storage!,
+	                               species=[1,2])
 
-		if steady_state
-			#solving steadystate solution
-			sol=VoronoiFVM.solve(system)
-			nf=nodeflux(system,sol)
+		# Main solver
+	    if steadyStateFlag
+			# Steady state solution
+			sol = VoronoiFVM.solve(system)
+			nf  = nodeflux(system,sol)
+			
 			return grid,sol,nf
 		else
-			#solving transient solution
-			if diffeq
-				inival=unknowns(system,inival=0)
+			# Transient solution
+			if diffeqFlag
+				inival  = unknowns(system,inival=0)
 				problem = ODEProblem(system,inival,(0.0,tend))
-				odesol = DifferentialEquations.solve(problem,method,dt = dt!,adaptive = false)
-				sol=reshape(odesol,system)
+				odesol  = DifferentialEquations.solve(problem, method, 
+					      dt = dt!, adaptive = false)
+				sol     = reshape(odesol,system)
+				
 			else
-				sol=VoronoiFVM.solve(system,inival = 0,times=(0,tend),Δu_opt=T_heat,Δt_min=dt!*0.1, Δt=dt!)	
-			
+				sol = VoronoiFVM.solve(system,inival = 0,
+					                   times = (0,tend), 
+					                   Δu_opt = T_heat, 
+					                   Δt_min=dt!*0.1, Δt = dt!)	
 			end
 
 			nf = []
 			for t in 0:dt!:tend
 				push!(nf,nodeflux(system,sol(t)))
 			end
+			
 			return grid,sol,nf
 		end
 end
 
+# ╔═╡ 14dcce2e-99ca-4bd8-b357-fb260de9caad
+md"""
+# Mesh independence study
+"""
+
+# ╔═╡ 0e8be14b-221d-459d-9563-c6ec65a21e48
+md"""
+### Parametric study definition
+
+We use the average pressure (mean of the pressure distribution) in the steady case with T_heat = 0.5 as the error-flag parameter
+"""
+
+# ╔═╡ bc2febeb-2b89-4cfc-a28e-adb19182334f
+begin
+	Nx  = [13, 20, 30, 45, 68, 102, 151]
+	Ny  = [7,  10, 15, 23, 34, 51,   77]
+	N   = Nx .* Ny
+	nn  = size(Nx, 1)
+	
+	err        = zeros(nn)
+	presVector = zeros(nn)
+end;
+
+# ╔═╡ 6f927c3e-5a61-4773-94f9-68b62a257f8b
+md"""
+### Results
+"""
+
+# ╔═╡ 6d4a1cdd-40a8-4d48-9080-499f4733135f
+begin
+	for idx in 1:nn
+		nx   = Nx[idx]
+		ny   = Ny[idx]
+		
+		tend = 10.0 
+		dt   = 0.1 
+		
+		steadystate   = true 
+		use_diffeq_jl = true
+		
+		method        = ImplicitEuler() 
+	
+		
+		grid,sol,nf     = porousMedium(nx, ny, 0.5, steadystate,
+			                           use_diffeq_jl,method,tend,dt)
+	
+		presVector[idx] = mean(sol[1,:])
+		
+		if idx > 1
+			err[idx] = (abs(presVector[idx] - presVector[idx-1]))
+		else
+			err[idx] = presVector[idx]
+		end
+	end 
+end;
+
+# ╔═╡ ff14e1b6-cbf1-4183-b568-2e4b29e44565
+begin
+	PyPlot.clf()
+	PyPlot.semilogx(N[2:end], err[2:end], color="k", marker="s")
+	PyPlot.plot([0, 1e5], [0.001, 0.001], color = "r", linestyle= "-.")
+
+	PyPlot.ticklabel_format(axis="y", style="scientific", scilimits=(-3, 0), useOffset=false)
+	PyPlot.tick_params(direction= "in", which= "minor", length= 2, bottom= true, top= true, right= true, left= true)
+    PyPlot.tick_params(direction= "in", which= "major", length= 4, bottom= true, top= true, right= true, left=true)
+
+	
+	PyPlot.grid(which="major")
+	PyPlot.grid(which="minor", linestyle= "--")
+	
+	PyPlot.xlabel("number of nodes (-)")
+	PyPlot.ylabel("error (-)")
+	PyPlot.xlim([1.5e2, 1.5e4])
+	
+	figure = PyPlot.gcf()
+end
+
+# ╔═╡ 40927741-b807-4ea5-9ab9-cfd38428c627
+md"""
+# Solutions
+"""
+
 # ╔═╡ 331e571c-ffa4-4a04-80b4-42565bda4921
 begin
-	tend = 10.0 #final time !!always use float
-	dt = 0.1 #stepsize !!always use float 
-	steadystate = false #solving for steady state or transient depending on boolean value
+	tend          = 10.0 
+	dt            = 0.1 
+	
+	steadystate   = true 
 	use_diffeq_jl = true
-	method = ImplicitEuler() #only when above is true
-	#other nice methods:
-	#Rosenbrock23(),
-	#RadauIIA3(),
-	#ImplicitEuler(),
-	#to see wave behaviour a.k.a when you use explicit method Trapezoid(), ImplicitMidpoint()
-	T_heat = 0.5
-	grid,sol,nf = Porous_medium(68,34,T_heat,steadystate,use_diffeq_jl,method,tend,dt)
-	println(typeof(sol))
-end
+
+	method        = ImplicitEuler() 
+
+	
+	# Other nice methods:
+	#    Rosenbrock23(),
+	#    RadauIIA3(),
+	#    ImplicitEuler(),
+	#
+	# To see wave behaviour a.k.a when you use explicit method, use 
+	#    Trapezoid(), 
+	#    ImplicitMidpoint()
+	
+	Tₕₑₐₜ = 0.5
+	
+	grid,sol,nf = porousMedium(68,34, Tₕₑₐₜ,steadystate,use_diffeq_jl,method,tend,dt)
+
+end;
 
 # ╔═╡ 141f00d9-99e9-400a-a5c2-d2989cc0c85f
 if steadystate
@@ -137,12 +295,6 @@ else
 	index = convert(Int64, round((tend/dt*t_plot/tend), digits=0))+1;
 	tnf  = nf[index];
 end;
-
-# ╔═╡ 54a04bb3-ac8b-4ad1-8bf3-450f8995984d
-begin 
-	using DelimitedFiles
-	writedlm("SteadyPreMesh_1.csv",  tsol[1,:], ',')
-end
 
 # ╔═╡ 92c80dbe-ab43-4606-a287-771defd12f72
 begin#plotting pressure
@@ -191,6 +343,8 @@ ExtendableGrids = "cfc395e8-590f-11e8-1f13-43a2532b2fa8"
 GridVisualize = "5eed8a63-0fb0-45eb-886d-8d5a387d12b8"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 PlutoVista = "646e1f28-b900-46d7-9d87-d554eb38a413"
+PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 VoronoiFVM = "82b139dc-5afc-11e9-35da-9b9bdfd336f3"
 
 [compat]
@@ -199,6 +353,7 @@ ExtendableGrids = "~0.9.1"
 GridVisualize = "~0.5.1"
 PlutoUI = "~0.7.37"
 PlutoVista = "~0.8.12"
+PyPlot = "~2.10.0"
 VoronoiFVM = "~0.16.2"
 
 [extras]
@@ -248,9 +403,9 @@ version = "3.2.2"
 
 [[ArrayLayouts]]
 deps = ["FillArrays", "LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "623a32b87ef0b85d26320a8cc7e57ded707aef64"
+git-tree-sha1 = "56c347caf09ad8acb3e261fe75f8e09652b7b05b"
 uuid = "4c555306-a7a7-4459-81d9-ec55ddd5c99a"
-version = "0.7.5"
+version = "0.7.10"
 
 [[Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -386,6 +541,12 @@ git-tree-sha1 = "455419f7e328a1a2493cabc6428d79e951349769"
 uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
 version = "0.1.1"
 
+[[Conda]]
+deps = ["Downloads", "JSON", "VersionParsing"]
+git-tree-sha1 = "6e47d11ea2776bc5627421d59cdcc1296c058071"
+uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
+version = "1.7.0"
+
 [[ConstructionBase]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "f74e9d5388b8620b4cee35d4c5a618dd4dc547f4"
@@ -425,13 +586,19 @@ version = "0.1.2"
 
 [[DelayDiffEq]]
 deps = ["ArrayInterface", "DataStructures", "DiffEqBase", "LinearAlgebra", "Logging", "NonlinearSolve", "OrdinaryDiffEq", "Printf", "RecursiveArrayTools", "Reexport", "UnPack"]
-git-tree-sha1 = "52f54bd7f7bc1ce794add0ccf08f8fa21acfaed9"
+git-tree-sha1 = "9b50344853bd81a1a22bfe290781d538f4790244"
 uuid = "bcd4f6db-9728-5f36-b5f7-82caef46ccdb"
-version = "5.35.1"
+version = "5.35.0"
 
 [[DelimitedFiles]]
 deps = ["Mmap"]
 uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+
+[[DensityInterface]]
+deps = ["InverseFunctions", "Test"]
+git-tree-sha1 = "80c3e8639e3353e5d2912fb3a1916b8455e2494b"
+uuid = "b429d917-457f-4dbc-8f4c-0cc954292b1d"
+version = "0.4.0"
 
 [[DiffEqBase]]
 deps = ["ArrayInterface", "ChainRulesCore", "DEDataArrays", "DataStructures", "Distributions", "DocStringExtensions", "FastBroadcast", "ForwardDiff", "FunctionWrappers", "IterativeSolvers", "LabelledArrays", "LinearAlgebra", "Logging", "MuladdMacro", "NonlinearSolve", "Parameters", "PreallocationTools", "Printf", "RecursiveArrayTools", "RecursiveFactorization", "Reexport", "Requires", "SciMLBase", "Setfield", "SparseArrays", "StaticArrays", "Statistics", "SuiteSparse", "ZygoteRules"]
@@ -486,10 +653,10 @@ deps = ["Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[Distributions]]
-deps = ["FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns"]
-git-tree-sha1 = "a837fdf80f333415b69684ba8e8ae6ba76de6aaa"
+deps = ["ChainRulesCore", "DensityInterface", "FillArrays", "LinearAlgebra", "PDMats", "Printf", "QuadGK", "Random", "SparseArrays", "SpecialFunctions", "Statistics", "StatsBase", "StatsFuns", "Test"]
+git-tree-sha1 = "9d3c0c762d4666db9187f363a76b47f7346e673b"
 uuid = "31c24e10-a181-5473-b8eb-7969acd0382f"
-version = "0.24.18"
+version = "0.25.49"
 
 [[DocStringExtensions]]
 deps = ["LibGit2"]
@@ -578,10 +745,10 @@ uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 version = "1.13.0"
 
 [[FillArrays]]
-deps = ["LinearAlgebra", "Random", "SparseArrays"]
-git-tree-sha1 = "693210145367e7685d8604aee33d9bfb85db8b31"
+deps = ["LinearAlgebra", "Random", "SparseArrays", "Statistics"]
+git-tree-sha1 = "deed294cde3de20ae0b2e0355a6c4e1c6a5ceffc"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "0.11.9"
+version = "0.12.8"
 
 [[FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Requires", "SparseArrays", "StaticArrays"]
@@ -1050,6 +1217,18 @@ version = "1.2.5"
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
+[[PyCall]]
+deps = ["Conda", "Dates", "Libdl", "LinearAlgebra", "MacroTools", "Serialization", "VersionParsing"]
+git-tree-sha1 = "1fc929f47d7c151c839c5fc1375929766fb8edcc"
+uuid = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+version = "1.93.1"
+
+[[PyPlot]]
+deps = ["Colors", "LaTeXStrings", "PyCall", "Sockets", "Test", "VersionParsing"]
+git-tree-sha1 = "14c1b795b9d764e1784713941e787e1384268103"
+uuid = "d330b81b-6aea-500a-939a-2ce795aea3ee"
+version = "2.10.0"
+
 [[QuadGK]]
 deps = ["DataStructures", "LinearAlgebra"]
 git-tree-sha1 = "78aadffb3efd2155af139781b8a8df1ef279ea39"
@@ -1083,9 +1262,9 @@ version = "1.2.1"
 
 [[RecursiveArrayTools]]
 deps = ["Adapt", "ArrayInterface", "ChainRulesCore", "DocStringExtensions", "FillArrays", "LinearAlgebra", "RecipesBase", "Requires", "StaticArrays", "Statistics", "ZygoteRules"]
-git-tree-sha1 = "f5dd036acee4462949cc10c55544cc2bee2545d6"
+git-tree-sha1 = "b66df9b4f668b340a6b6b8a7e667a68f586c5561"
 uuid = "731186ca-8d62-57ce-b412-fbd966d074cd"
-version = "2.25.1"
+version = "2.25.0"
 
 [[RecursiveFactorization]]
 deps = ["LinearAlgebra", "LoopVectorization", "Polyester", "StrideArraysCore", "TriangularSolve"]
@@ -1200,9 +1379,9 @@ version = "1.20.2"
 
 [[SpecialFunctions]]
 deps = ["ChainRulesCore", "IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
-git-tree-sha1 = "cbf21db885f478e4bd73b286af6e67d1beeebe4c"
+git-tree-sha1 = "5ba658aeecaaf96923dce0da9e703bd1fe7666f9"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "1.8.4"
+version = "2.1.4"
 
 [[SplittablesBase]]
 deps = ["Setfield", "Test"]
@@ -1218,9 +1397,9 @@ version = "0.4.1"
 
 [[StaticArrays]]
 deps = ["LinearAlgebra", "Random", "Statistics"]
-git-tree-sha1 = "6976fab022fea2ffea3d945159317556e5dad87c"
+git-tree-sha1 = "74fb527333e72ada2dd9ef77d98e4991fb185f04"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.4.2"
+version = "1.4.1"
 
 [[Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
@@ -1389,6 +1568,11 @@ git-tree-sha1 = "1901efb08ce6c4526ddf7fdfa9181dc3593fe6a2"
 uuid = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
 version = "0.21.25"
 
+[[VersionParsing]]
+git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
+uuid = "81def892-9a0e-5fdd-b105-ffc91e053289"
+version = "1.3.0"
+
 [[VertexSafeGraphs]]
 deps = ["Graphs"]
 git-tree-sha1 = "8351f8d73d7e880bfc042a8b6922684ebeafb35c"
@@ -1427,9 +1611,18 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 """
 
 # ╔═╡ Cell order:
+# ╟─18c3a1f0-5ce4-4fcb-bf8c-061e4d6d485d
+# ╟─bf522f6e-cb61-4e6e-b0bd-609a38b150a8
 # ╠═4a55ed84-a2e9-11ec-3f65-4f384565073e
 # ╠═340720e1-5ede-4cd7-b1c0-6aa066aa1331
 # ╠═d119f14c-f863-47ce-82d3-02e52f9fd113
+# ╟─14dcce2e-99ca-4bd8-b357-fb260de9caad
+# ╟─0e8be14b-221d-459d-9563-c6ec65a21e48
+# ╠═bc2febeb-2b89-4cfc-a28e-adb19182334f
+# ╟─6f927c3e-5a61-4773-94f9-68b62a257f8b
+# ╠═6d4a1cdd-40a8-4d48-9080-499f4733135f
+# ╟─ff14e1b6-cbf1-4183-b568-2e4b29e44565
+# ╟─40927741-b807-4ea5-9ab9-cfd38428c627
 # ╠═331e571c-ffa4-4a04-80b4-42565bda4921
 # ╟─141f00d9-99e9-400a-a5c2-d2989cc0c85f
 # ╠═483d49dd-06f6-467d-b05c-e06dc801a313
