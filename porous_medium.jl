@@ -92,7 +92,7 @@ and convective heat equation. It assumes a rectangular domain.
 	nf: {Vector}
 		Species flux.
 """
-function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag, method, tend = 10.0, dt! = 1.0)
+function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag = false, method = ImplicitEuler(), tend = 10.0, dt! = 1.0)
 
 		# Grid definition
 		X    = collect(range(0, 300, length = Nx))
@@ -252,15 +252,14 @@ md"""
 # Solutions
 """
 
+# ╔═╡ 81b37c51-0626-48de-980a-6f5a6ec440dd
+md"""
+## Steady state
+"""
+
 # ╔═╡ 331e571c-ffa4-4a04-80b4-42565bda4921
 begin
-	tend          = 10.0 
-	dt            = 0.1 
-	
 	steadystate   = true 
-	use_diffeq_jl = true
-
-	method        = ImplicitEuler() 
 
 	
 	# Other nice methods:
@@ -274,7 +273,40 @@ begin
 	
 	Tₕₑₐₜ = 0.5
 	
-	grid,sol,nf = porousMedium(68,34, Tₕₑₐₜ,steadystate,use_diffeq_jl,method,tend,dt)
+	grid,sol,nf = porousMedium(68,34, Tₕₑₐₜ,steadystate)
+
+end;
+
+# ╔═╡ 5caccc73-0e3e-4be5-bfd7-ac8d5819f62f
+md"""
+### Temperature and pressure maps
+"""
+
+# ╔═╡ 1e4369a3-8029-418f-bd3b-f228a73fc76b
+md"""
+## Transient
+"""
+
+# ╔═╡ 9f774193-0b1d-41b6-b747-0de34e26b409
+begin
+	diffeqFlag = true
+	method     = ImplicitEuler()
+	tend       = 10.0
+	dt!        = 1.0
+
+	
+	# Other nice methods:
+	#    Rosenbrock23(),
+	#    RadauIIA3(),
+	#    ImplicitEuler(),
+	#
+	# To see wave behaviour a.k.a when you use explicit method, use 
+	#    Trapezoid(), 
+	#    ImplicitMidpoint()
+	
+	
+	_,transientSol,transientnf = porousMedium(68,34, Tₕₑₐₜ, false,  
+		                         diffeqFlag,method,tend,dt!)
 
 end;
 
@@ -296,22 +328,58 @@ else
 	tnf  = nf[index];
 end;
 
+# ╔═╡ 3385c501-68a6-46ba-9594-e937c65bbe23
+begin
+	x    = collect(range(0, 300, length = 68))
+	y    = collect(range(0, 150, length = 34))
+
+	X    = x' .* ones(34)
+	Y    = ones(68)' .* y
+	
+	PyPlot.clf()
+
+	ax = PyPlot.axes()
+	ax.set_aspect("equal")
+	
+	PyPlot.contourf(X, Y, reshape(tsol[1,:], (68, 34))')
+
+
+
+	PyPlot.suptitle("Steady state pressure distribution")
+
+	PyPlot.tick_params(direction= "in", which= "minor", length= 2, bottom= true, top= true, right= true, left= true)
+    PyPlot.tick_params(direction= "in", which= "major", length= 4, bottom= true, top= true, right= true, left=true)
+
+	PyPlot.xlim([0, 300])
+	PyPlot.ylim([0, 150])
+
+	PyPlot.xlabel("x")
+	PyPlot.ylabel("y")
+
+	PyPlot.colorbar()
+	
+	PyPlot.gcf()
+
+end
+
 # ╔═╡ 92c80dbe-ab43-4606-a287-771defd12f72
 begin#plotting pressure
-	vis1=GridVisualizer(size=(600,600),xlabel="x",legend=:rt);vis1
-	scalarplot!(vis1,grid,tsol[1,:],color=:red,label="u_1")
+	vis1 = GridVisualizer(size=(600,600),
+		                  xlabel="x",
+						  ylabel = "y",
+	                      title = "pressure");
+	
+	scalarplot!(vis1, grid, tsol[1,:],colormap=:viridis, levels=0:0.1:0.4)
+
 	reveal(vis1)
 end
 
 # ╔═╡ 50ac52d2-9405-45e1-9160-d2cd5d388427
 begin#plotting temperature
 	vis2=GridVisualizer(size=(600,600),xlabel="x",legend=:rt);vis2
-	scalarplot!(vis2,grid,tsol[2,:],color=:red,label="u_2")
+	scalarplot!(vis2,grid,tsol[2,:],colormap=:hot,levels=0:0.1:0.5, label="u_2")
 	reveal(vis2)
 end
-
-# ╔═╡ 0f998a07-70b3-4366-a406-7dfd1396df39
-gridplot(grid,legend=:lt)
 
 # ╔═╡ 7f028b43-51c4-4d80-b11e-ce4e733a3a63
 begin#plotting q in x direction
@@ -1623,15 +1691,19 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═6d4a1cdd-40a8-4d48-9080-499f4733135f
 # ╟─ff14e1b6-cbf1-4183-b568-2e4b29e44565
 # ╟─40927741-b807-4ea5-9ab9-cfd38428c627
+# ╟─81b37c51-0626-48de-980a-6f5a6ec440dd
 # ╠═331e571c-ffa4-4a04-80b4-42565bda4921
 # ╟─141f00d9-99e9-400a-a5c2-d2989cc0c85f
 # ╠═483d49dd-06f6-467d-b05c-e06dc801a313
-# ╠═92c80dbe-ab43-4606-a287-771defd12f72
+# ╟─5caccc73-0e3e-4be5-bfd7-ac8d5819f62f
+# ╟─3385c501-68a6-46ba-9594-e937c65bbe23
+# ╟─92c80dbe-ab43-4606-a287-771defd12f72
 # ╠═50ac52d2-9405-45e1-9160-d2cd5d388427
-# ╠═0f998a07-70b3-4366-a406-7dfd1396df39
 # ╠═54a04bb3-ac8b-4ad1-8bf3-450f8995984d
 # ╟─7f028b43-51c4-4d80-b11e-ce4e733a3a63
 # ╟─ef66a5fe-2967-4cb4-a346-52aa275f0baa
 # ╟─b0f33228-9cda-4fe6-a95f-8c49e1f55032
+# ╟─1e4369a3-8029-418f-bd3b-f228a73fc76b
+# ╠═9f774193-0b1d-41b6-b747-0de34e26b409
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
