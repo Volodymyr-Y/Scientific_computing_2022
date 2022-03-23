@@ -28,42 +28,43 @@ A,rhs = get_T_matrix(mesh_1,T_bc_bott,T_bc_top)
 @time T_sol = time_temperature(T_0,A,rhs,(0.0,t_end),T_bc_bott,T_bc_top,0.1,0.01)
 @time P_sol = time_pressure(mesh_1,T_sol)
 @time q_sol = time_flow(mesh_1,T_sol,P_sol)
-#@time q_sol_y = time_flow_y(mesh_1,T_sol,P_sol)
+@time q_sol_y = time_flow_y(mesh_1,T_sol,P_sol)
 println(maximum(q_sol(20)[1]),maximum(q_sol(20)[2]))
 T_h = get_temperature(A,rhs,T_bc_bott,T_bc_top)
 P_h = get_pressure(mesh_1,T_h)
 us ,vs = get_flow(mesh_1,T_h,P_h)
 
-f = Figure(resolution = (800, 400))
-ax = CairoMakie.Axis(f[1, 1], backgroundcolor = "black")
-heatmap!(ax,x,y,us)
-display(f)
+#plot_2D(us,N_x,N_y)
+# f = Figure(resolution = (800, 400))
+# ax = CairoMakie.Axis(f[1, 1], backgroundcolor = "black")
+# heatmap!(ax,x,y,us)
+# display(f)
 
 
 
-# fig = Figure()
-# time = Observable(0.0)
-# u_h1 = lift(T_sol,time)
-# u_h2 = lift(P_sol,time)
-# q_x = lift(t -> q_sol(t)[1],time)
-# q_y = lift(t -> q_sol(t)[2],time)
-# #strength = lift((q_x,q_y) -> sqrt.(q_x .^ 2 .+ q_y .^ 2), q_x, q_y )
-# #strength = sqrt.(q .^ 2 .+ q .^ 2)
-# ax1 = CairoMakie.Axis(fig[1,1],)#title = @lift("t = $(round(($time), digits = 1))"*" s")
-# ax2 = CairoMakie.Axis(fig[1,2])
-# ax3 = CairoMakie.Axis(fig[2,1])
-# ax4 = CairoMakie.Axis(fig[2,2])
-# #arrows!(ax1,x, y, q_x, q_y, lengthscale = 0.01,arrowcolor = strength, linecolor = strength)
-# heatmap!(ax1,x, y, u_h1 )
-# heatmap!(ax2,x, y, u_h2 )
-# heatmap!(ax3,x, y, q_x )
-# heatmap!(ax4,x, y, q_y )
-# N_frames = 7*30
-# fps = 30
-# t_sample = LinRange(0,t_end,N_frames)
-# record(fig,"letters.gif", t_sample;framerate = fps) do t
-# time[] = t
-# end
+fig = Figure()
+time = Observable(0.0)
+u_h1 = lift(T_sol,time)
+u_h2 = lift(P_sol,time)
+q_x = lift(t -> q_sol(t)[1],time)
+q_y = lift(t -> q_sol(t)[2],time)
+#strength = lift((q_x,q_y) -> sqrt.(q_x .^ 2 .+ q_y .^ 2), q_x, q_y )
+#strength = sqrt.(q .^ 2 .+ q .^ 2)
+ax1 = CairoMakie.Axis(fig[1,1],)#title = @lift("t = $(round(($time), digits = 1))"*" s")
+ax2 = CairoMakie.Axis(fig[1,2])
+ax3 = CairoMakie.Axis(fig[2,1])
+ax4 = CairoMakie.Axis(fig[2,2])
+#arrows!(ax1,x, y, q_x, q_y, lengthscale = 0.01,arrowcolor = strength, linecolor = strength)
+#heatmap!(ax1,x, y, u_h1 )
+#heatmap!(ax2,x, y, u_h2 )
+#heatmap!(ax3,x, y, q_x )
+heatmap!(ax4,x, y, q_y )
+N_frames = 7*30
+fps = 30
+t_sample = LinRange(0,t_end,N_frames)
+record(fig,"letters.gif", t_sample;framerate = fps) do t
+time[] = t
+end
 
 # #create_gif_3D(mesh_1,P_sol,"letters.gif",t_end)
 
