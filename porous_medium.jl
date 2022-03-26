@@ -21,6 +21,12 @@ begin
 	GridVisualize.default_plotter!(PlutoVista)
 end;
 
+# ╔═╡ a39f1f1a-f697-400e-bf71-b7297ea4e443
+begin 
+	using DelimitedFiles
+	#writedlm("tri_grid_70_35_steady_Temperature_10.csv",  tsol[2,:], ',')
+end;
+
 # ╔═╡ 18c3a1f0-5ce4-4fcb-bf8c-061e4d6d485d
 TableOfContents()
 
@@ -34,6 +40,7 @@ begin
 	const k     = 100;
 	const g     = [0 -1];
 	const c     = 0.001;
+	const n     = 1;
 	const α     = 0.01;
 	const λ     = 0.01;
 	const ρ_ref = 1;
@@ -69,6 +76,34 @@ md"""
 ### Results
 """
 
+# ╔═╡ 6d4a1cdd-40a8-4d48-9080-499f4733135f
+#begin
+#	for idx in 1:nn
+#		nx   = Nx[idx]
+#		ny   = Ny[idx]
+#		
+#		tend = 10.0 
+#		dt   = 0.1 
+		
+#		steadystate   = true 
+#		use_diffeq_jl = true
+		
+#		method        = ImplicitEuler() 
+	
+		
+#		grid,sol,nf     = porousMedium(nx, ny, 0.5, steadystate,
+#			                           use_diffeq_jl,method,tend,dt)
+	
+#		presVector[idx] = mean(sol[1,:])
+		
+#		if idx > 1
+#			err[idx] = (abs(presVector[idx] - presVector[idx-1]))
+#		else
+#			err[idx] = presVector[idx]
+#		end
+#	end 
+#end;
+
 # ╔═╡ ff14e1b6-cbf1-4183-b568-2e4b29e44565
 begin
 	PyPlot.clf()
@@ -92,8 +127,8 @@ end
 
 # ╔═╡ f6dfa868-c401-437b-8feb-0f7cb4cb98eb
 begin
-	N_x = 70
-	N_y = 35
+	N_x = 5
+	N_y = 50
 end;
 
 # ╔═╡ 40927741-b807-4ea5-9ab9-cfd38428c627
@@ -113,10 +148,10 @@ md"""
 
 # ╔═╡ 952a8698-77a2-4d0d-8eb5-674bbd58016e
 begin
-	dt!        = 1
-	tend       = 500
-	diffeqFlag = true
-	method     = ImplicitEuler()
+	dt!        = 0.1
+	tend       = 10
+	diffeqFlag = false
+	method     = Rosenbrock23()
 	# Other nice methods:
 	#    Rosenbrock23(),
 	#    RadauIIA3(),
@@ -129,7 +164,7 @@ end;
 
 # ╔═╡ 8db716bb-8ba7-4ad7-aca6-69b8159cfdb7
 md"""
-	Compute only **steady state**: $(@bind steadyState CheckBox())
+	Compute only **steady state**: $(@bind steadyState CheckBox(default=true))
 	"""	
 
 # ╔═╡ e53114df-f15e-48af-93d4-56fd889b56a1
@@ -148,7 +183,7 @@ md"""
 
 # ╔═╡ 9b657187-b79e-497c-930f-331a54be8213
 md"""
-	T$_{heat}$ at $\Gamma_{bottom} :\quad$ 	 $(@bind T_heat Select([0, 0.5, 1, 2, 5, 10], default = 0.5))
+	T$_{heat}$ at $\Gamma_{bottom} :\quad$ 	 $(@bind T_heat Select([-0.5, 0, 0.5, 1, 2, 5, 10], default = 0.5))
 	"""	
 
 # ╔═╡ d119f14c-f863-47ce-82d3-02e52f9fd113
@@ -199,18 +234,29 @@ and convective heat equation. It assumes a rectangular domain.
 function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag = false, method = ImplicitEuler(), tend = 10.0, dt! = 1.0)
 
 		# Grid definition
-		X    = collect(range(0, 300, length = Nx))
-		Y    = collect(range(0, 150, length = Ny))
-		grid = simplexgrid(X,Y)	
-
+		X         = collect(range(0, 10, length = Nx))
 		
-		function flux!(f, u, edge)
-			f[1] = -ρ_ref*k*(u[1,1]-u[1,2] +α*0.5*(u[2,1]+u[2,2])*project(edge,g))
-			f[2] = λ*(u[2,1] - u[2,2])
-		end
+		hmax      = 150/(Ny+1)
+		hmin      = hmax * 0.001
+		Y_coarse  = collect(range(0, 125, length = Ny))
+		Y_fine    = geomspace(125, 150, hmax, hmin)
+		
+	
+		grid = simplexgrid(X,glue(Y_coarse, Y_fine))	
 
+
+
+		function flux!(f, u, edge)
+			g_h = project(edge, g)
+    		T   = 0.5 * (u[2,1] + u[2,2])
+			ρ_T = ρ_ref - α*(T - T_ref)
+
+			f[1] =   (u[1,1]- u[1,2]) + α*T*g_h
+			f[2] = - (λ* (u[2,1] - u[2,2]) + c*ρ_ref*k*T*(u[1,1] - u[1,2] - ρ_T*g_h))
+		end
+	
 		function storage!(f, u, node)
-        	f[1] = ρ_ref
+        	f[1] = 0
 			f[2] = c*u[2]
     	end
 	
@@ -227,80 +273,65 @@ function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag = false
 			
 			boundary_dirichlet!(f,u,bnode,species=2,region=3,value=0)
 			boundary_dirichlet!(f,u,bnode,species=1,region=3,value=0)
-			
-			boundary_neumann!(f,u,bnode,species=2,region=2,value=0)
-			boundary_neumann!(f,u,bnode,species=2,region=4,value=0)
-			boundary_neumann!(f,u,bnode,species=1,region=2,value=0)
-			boundary_neumann!(f,u,bnode,species=1,region=3,value=0)
-			boundary_neumann!(f,u,bnode,species=1,region=4,value=0)
 		end
 	
 		# Voronoi system definiion
 		system = VoronoiFVM.System(grid; 
-		                           flux=flux!,  
+		                           flux       = flux!,  
 		                           bcondition = bcondition!,
-		                           storage = storage!,
-	                               species=[1,2])
+		                           storage    = storage!,
+	                               species    = [1,2])
 
-		# Main solver
-	    if steadyStateFlag
+	     # Main solver
+	     if steadyStateFlag
 			# Steady state solution
-			sol = VoronoiFVM.solve(system)
-			nf  = nodeflux(system,sol)
+			sol = VoronoiFVM.solve(system, inival = 0.1, 
+				                   damp= 0.15, damp_grow=1.5; 
+				                   log=true)
+			 
+			nf  = nodeflux(system, sol)
 			
-			return grid,sol,nf
-		else
+			return grid, sol, nf, system, glue(Y_coarse, Y_fine)
+	     
+		 else
 			# Transient solution
-			if diffeqFlag
-				inival  = unknowns(system,inival=0)
-				problem = ODEProblem(system,inival,(0.0,tend))
-				odesol  = DifferentialEquations.solve(problem, method, 
-					      dt = dt!, adaptive = false)
+	   		function bcondition_steady!(f, u, bnode)
+		 		boundary_dirichlet!(f,u,bnode,species=2,region=1,value=0)
+		 		boundary_dirichlet!(f,u,bnode,species=2,region=3,value=0)
+		 		boundary_dirichlet!(f,u,bnode,species=1,region=3,value=0)
+	   		end
+	
+	   		system_steady = VoronoiFVM.System(grid; 
+						  				      flux       = flux!,  
+								              bcondition = bcondition_steady!,
+								              storage    = storage!,
+									          species    = [1,2])
+		
+	   		inival! = VoronoiFVM.solve(system_steady)
+	   
+	   		if diffeqFlag
+				problem = ODEProblem(system,inival!,(0.0,tend))
+			    odesol  = DifferentialEquations.solve(problem, method, 
+			                                          dt = dt!, 
+					                                  adaptive = false)
 				sol     = reshape(odesol,system)
-				
-			else
-				sol = VoronoiFVM.solve(system,inival = 0,
-					                   times = (0,tend), 
-					                   Δu_opt = T_heat, 
-					                   Δt_min=dt!*0.1, Δt = dt!)	
-			end
-
-			nf = []
+		
+	   		else
+				sol = VoronoiFVM.solve(system,inival = inival!,
+						    		   times = (0,tend), 
+							           Δu_opt = T_heat, 
+							           Δt_min=dt!*0.1, Δt = dt!) 
+	   		end
+	
+	   		nf = []
+	   
 			for t in 0:dt!:tend
 				push!(nf,nodeflux(system,sol(t)))
-			end
-			
-			return grid,sol,nf
+	   		end
+   
+			return grid,sol,nf, system, glue(Y_coarse, Y_fine)
 		end
 end
-
-# ╔═╡ 6d4a1cdd-40a8-4d48-9080-499f4733135f
-begin
-	for idx in 1:nn
-		nx   = Nx[idx]
-		ny   = Ny[idx]
-		
-		tend = 10.0 
-		dt   = 0.1 
-		
-		steadystate   = true 
-		use_diffeq_jl = true
-		
-		method        = ImplicitEuler() 
-	
-		
-		grid,sol,nf     = porousMedium(nx, ny, 0.5, steadystate,
-			                           use_diffeq_jl,method,tend,dt)
-	
-		presVector[idx] = mean(sol[1,:])
-		
-		if idx > 1
-			err[idx] = (abs(presVector[idx] - presVector[idx-1]))
-		else
-			err[idx] = presVector[idx]
-		end
-	end 
-end;
 
 # ╔═╡ 81b37c51-0626-48de-980a-6f5a6ec440dd
 if steadyState
@@ -314,9 +345,28 @@ else
 end
 
 # ╔═╡ 331e571c-ffa4-4a04-80b4-42565bda4921
-grid, sol, nf = porousMedium(N_x, N_y, T_heat, 
-	                         steadyState, 
-	                         diffeqFlag, ImplicitEuler(), tend, dt!);
+grid, sol, nf, system, Y_grid = porousMedium(N_x, N_y, T_heat, 
+	                                 steadyState, 
+	                                 diffeqFlag, method, tend, dt!);
+
+# ╔═╡ 0d6978b4-3aea-4b1b-9a49-747d4ead526b
+begin
+	hist=history(system)
+	summary(hist)
+end
+
+# ╔═╡ 9f3f6e8b-b7d5-4153-afc3-2ba82092f982
+plothistory(h)=scalarplot(1:length(h),h,resolution=(500,200),
+             yscale=:log,
+	        xlabel="step",
+            ylabel="||δu||_∞",
+            title= "Maximum norm of Newton update");
+
+# ╔═╡ e26c4c19-d8ff-47ea-adc1-a67dde6d0b4e
+plothistory(hist)
+
+# ╔═╡ c17c75a0-7903-4618-a15d-7d635d22b43a
+sol
 
 # ╔═╡ 8c484e8b-089d-4f01-91e0-f06ad8f0c7f1
 if steadyState
@@ -325,13 +375,7 @@ if steadyState
 else	
 	tsol  = sol(t_plot)
 	index = convert(Int64, round((tend/dt!*t_plot/tend), digits=0))+1
-	tnf   = nf[index]
-end;
-
-# ╔═╡ a39f1f1a-f697-400e-bf71-b7297ea4e443
-begin 
-	using DelimitedFiles
-	writedlm("tri_grid_70_35_steady_Temperature_10.csv",  tsol[2,:], ',')
+	#tnf   = nf[index]
 end;
 
 # ╔═╡ 5caccc73-0e3e-4be5-bfd7-ac8d5819f62f
@@ -376,7 +420,7 @@ end
 # ╔═╡ 50ac52d2-9405-45e1-9160-d2cd5d388427
 begin
 	vis2=GridVisualizer(size=(600,600),xlabel="x",legend=:rt);vis2
-	scalarplot!(vis2,grid,tsol[2,:],colormap=:hot, label="u_2")
+	scalarplot!(vis2,grid,tsol[2,:],colormap=:viridis, label="u_2")
 	reveal(vis2)
 end
 
@@ -434,37 +478,40 @@ md"""
 # ╔═╡ 2ff069f4-8306-4500-9db1-b3b247db758f
 begin
 	x    = collect(range(0, 300, length = N_x))
-	y    = collect(range(0, 150, length = N_y))
 
-	X    = x' .* ones(N_y)
-	Y    = ones(N_x)' .* y
 	
 	PyPlot.clf()
 
 	ax = PyPlot.axes()
-	ax.set_aspect("equal")
+	#ax.set_aspect("equal")
+
+	Z = reshape(tsol[2,:], (N_x, 535÷N_x))'
+	Z = Z[:,1]
 	
-	PyPlot.contourf(X, Y, reshape(tsol[1,:], (N_x, N_y))', levels = 20)
+	PyPlot.plot(Y_grid, Z, color = "k")
 
 	PyPlot.set_cmap("RdBu_r")
 
 
-	PyPlot.suptitle("Steady state pressure distribution for T(heat)= " *string(T_heat) )
+	PyPlot.suptitle("Steady state temperature distribution for T(heat)= " *string(T_heat) )
 
 	PyPlot.tick_params(direction= "in", which= "minor", length= 2, bottom= true, top= true, right= true, left= true)
     PyPlot.tick_params(direction= "in", which= "major", length= 4, bottom= true, top= true, right= true, left=true)
 
-	PyPlot.xlim([0, 300])
-	PyPlot.ylim([0, 150])
+	PyPlot.xlim([146, 150])
+	#PyPlot.ylim([-0.02, 0.1])
 
-	PyPlot.xlabel("x")
-	PyPlot.ylabel("y")
+	PyPlot.xlabel("y")
+	PyPlot.ylabel("temperature")
 
-	PyPlot.colorbar()
+	#PyPlot.colorbar()
 	
 	PyPlot.gcf()
 
 end
+
+# ╔═╡ 046e168f-4f74-4fc1-a7ba-ee33d8cab8e9
+gridplot(grid,resolution=(600,600),linewidth=0.5,legend=:lt)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1765,6 +1812,10 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╟─9b657187-b79e-497c-930f-331a54be8213
 # ╟─81b37c51-0626-48de-980a-6f5a6ec440dd
 # ╠═331e571c-ffa4-4a04-80b4-42565bda4921
+# ╠═0d6978b4-3aea-4b1b-9a49-747d4ead526b
+# ╠═9f3f6e8b-b7d5-4153-afc3-2ba82092f982
+# ╠═e26c4c19-d8ff-47ea-adc1-a67dde6d0b4e
+# ╠═c17c75a0-7903-4618-a15d-7d635d22b43a
 # ╠═8c484e8b-089d-4f01-91e0-f06ad8f0c7f1
 # ╟─5caccc73-0e3e-4be5-bfd7-ac8d5819f62f
 # ╟─8b171cb5-aaf3-41fc-ba6b-8ad847ea3f8d
@@ -1782,5 +1833,6 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═a39f1f1a-f697-400e-bf71-b7297ea4e443
 # ╟─ce222158-26ce-4d96-95b3-3187749c0778
 # ╟─2ff069f4-8306-4500-9db1-b3b247db758f
+# ╠═046e168f-4f74-4fc1-a7ba-ee33d8cab8e9
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
