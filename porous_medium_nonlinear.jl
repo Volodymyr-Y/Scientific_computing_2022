@@ -113,7 +113,7 @@ md"""
 
 # ╔═╡ 952a8698-77a2-4d0d-8eb5-674bbd58016e
 begin
-	dt!        = 1
+	dt!        = 0.1
 	tend       = 10
 	diffeqFlag = true
 	method     = Rosenbrock23()
@@ -342,6 +342,12 @@ grid, sol, nf,Y_grid = porousMedium(N_x, N_y, T_heat,
 	                         steadyState, 
 	                         diffeqFlag, method, tend, dt!);
 
+# ╔═╡ a39f1f1a-f697-400e-bf71-b7297ea4e443
+begin 
+	using DelimitedFiles
+    writedlm("steady_05.csv",  sol, ',')
+end;
+
 # ╔═╡ 8c484e8b-089d-4f01-91e0-f06ad8f0c7f1
 if steadyState
 	tsol = sol
@@ -350,12 +356,6 @@ else
 	tsol  = sol(t_plot)
 	index = convert(Int64, round((tend/dt!*t_plot/tend), digits=0))+1
 	tnf   = nf[index]
-end;
-
-# ╔═╡ a39f1f1a-f697-400e-bf71-b7297ea4e443
-begin 
-	using DelimitedFiles
-	writedlm("tri_grid_70_35_steady_Temperature_10.csv",  tsol[2,:], ',')
 end;
 
 # ╔═╡ 6029fe47-2837-4ec4-8620-c885f37285ba
@@ -456,6 +456,9 @@ end
 md"""
 ### Data export
 """
+
+# ╔═╡ a02e6e77-23a2-4bc5-a9d7-f068fe03ad61
+sol
 
 # ╔═╡ ce222158-26ce-4d96-95b3-3187749c0778
 md"""
@@ -1811,6 +1814,7 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╟─d1359573-87e5-4b42-9f29-dd12e4a0a223
 # ╠═b0f33228-9cda-4fe6-a95f-8c49e1f55032
 # ╟─4f926fc9-fc55-40f4-b08a-033acf32edf2
+# ╠═a02e6e77-23a2-4bc5-a9d7-f068fe03ad61
 # ╠═a39f1f1a-f697-400e-bf71-b7297ea4e443
 # ╟─ce222158-26ce-4d96-95b3-3187749c0778
 # ╠═2ff069f4-8306-4500-9db1-b3b247db758f
