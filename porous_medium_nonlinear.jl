@@ -33,7 +33,7 @@ md"""
 begin
 	const k     = 100;
 	const g     = [0 -1];
-	const c     = 1e-4;
+	const c     = 1e-3;
 	const α     = 0.01;
 	const λ     = 0.01;
 	const ρ_ref = 1;
@@ -342,12 +342,6 @@ grid, sol, nf,Y_grid = porousMedium(N_x, N_y, T_heat,
 	                         steadyState, 
 	                         diffeqFlag, method, tend, dt!);
 
-# ╔═╡ a39f1f1a-f697-400e-bf71-b7297ea4e443
-begin 
-	using DelimitedFiles
-    writedlm("steady_05.csv",  sol, ',')
-end;
-
 # ╔═╡ 8c484e8b-089d-4f01-91e0-f06ad8f0c7f1
 if steadyState
 	tsol = sol
@@ -499,6 +493,12 @@ begin
 	PyPlot.gcf()
 
 end
+
+# ╔═╡ a39f1f1a-f697-400e-bf71-b7297ea4e443
+begin 
+	using DelimitedFiles
+    writedlm("BL_001.csv",  Z, ',')
+end;
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """

@@ -129,9 +129,75 @@ h.Label.FontSize = 11;
 set(gcf, 'Renderer', 'painters')
 print(fig, 'steady_temp_T_0' ,'-dpdf','-r0')
 
+%% Line plot
+
+addpath data
+addpath figures
+
+%load('test.mat')
+load('yy.mat')
+
+fig = figure();
+
+set(fig, 'Units', 'centimeters')
+pos = get(fig,'Position');
+set(fig,'PaperPositionMode','Auto','PaperUnits','centimeters','PaperSize',[pos(3), pos(4)])
+
+set(groot,'defaultAxesTickLabelInterpreter','latex');  
+
+colors = ["#fde725", "#35b779", "#31688e", "#440154"];
+
+plot(yy(30:end), BL(30:end,1), 'LineWidth', 1.5, 'Color', colors(1))
+hold on;
+plot(yy(30:end), BL(30:end,2), 'LineWidth', 1.5, 'Color', colors(2))
+hold on;
+plot(yy(30:end), BL(30:end,3), 'LineWidth', 1.5, 'Color', colors(3))
+hold on;
+plot(yy(30:end), BL(30:end,4), 'LineWidth', 1.5, 'Color', colors(4))
+
+xlim([82, 152])
+
+xlabel('y-direction', 'Interpreter', 'latex')
+ylabel('temperature', 'Interpreter', 'latex')
+
+legend('$\lambda$ = 10', '$\lambda$ = 1', '$\lambda$ = 0.1', '$\lambda$ = 0.001', ...
+    'Location', 'best',...
+    'Interpreter', 'latex')
+
+grid on
+
+set(gcf, 'Renderer', 'painters')
+print(fig, 'boundary_layer_effect' ,'-dpdf','-r0')
+
+
+%% Mesh plot
+
+load('yy.mat')
+
+Nx  = 45;
+Ny  = 96;
+zero = zeros(1, Ny*Nx);
+
+
+xx  = linspace(0, 300, Nx);
+
+[gridX, gridY] = meshgrid(xx, yy);
+
+T = delaunay(gridX, gridY);
+
+TO = triangulation(T,gridX(:), gridY(:), zero(:));
+
+trimesh(TO, 'EdgeColor', '#8E8E8E')
+view(2)
+
+ylabel('y-direction', 'Interpreter','latex')
+xlabel('x-direction', 'Interpreter','latex')
 
 
 
+% 
+% set(gcf, 'Renderer', 'painters')
+% print(fig, 'mesh_part_1' ,'-dpdf','-r0')
 
 
 
