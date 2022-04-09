@@ -58,22 +58,22 @@ function create_gif_3D(mesh,solution,filename,t_end)
     end
 end
 
-function plot_3D(u_h,N_x,N_y) # plot a function of 2 variables on given domain
+function plot_3D(u_h,N_x,N_y,label,filename) # plot a function of 2 variables on given domain
     fig = Figure()
     x = LinRange(0, 300, N_x)
     x = vec(transpose(x' .* ones(N_y)))
     y = LinRange(0, 150, N_y)
     y = vec(transpose(ones(N_x)' .* y))
     # change view angles in line below: camera = (⋅,⋅)
-    ax = Axis3(fig[1,1]; aspect=(1, 1, 1))
+    ax = Axis3(fig[1,1]; aspect=(1, 1, 1),xlabel = "x",ylabel = "y",zlabel = label)
     hm = surface!(ax,x, y, u_h )
-    Colorbar(fig[1, 2], colormap = :viridis,
-    flipaxis = false)
+    Colorbar(fig[1, 2],hm )
+    save(filename, fig)
     display(fig)
 end
 
 #plots a 2d heatmap of the solution
-function plot_2D(u_h,N_x,N_y)
+function plot_2D(u_h,N_x,N_y,lab,filename)
     coll_x = LinRange(0, 300, N_x)
     coll_y = LinRange(0, 150, N_y)
     fig = Figure()
@@ -82,9 +82,11 @@ function plot_2D(u_h,N_x,N_y)
     b = vec(transpose(ones(Int64,N_x)' .* coll_y))
     u= (reshape(u_h,(N_x,N_y)))
     hm = heatmap!(ax, a, b, u)
-    Colorbar(fig[1, 2], colormap = :viridis,
-    flipaxis = false)
-    display(fig)
+    CairoMakie.contour!(coll_x, coll_y,u,color = "black",linewidth = 3.0)#
+    #hm = contourf!(coll_x, coll_y, u, levels = 40)
+    Colorbar(fig[1, 2], hm,label = lab)
+    save(filename, fig, pt_per_unit = 1)
+    #display(fig)
 end
 
 function get_cell_info(i,mesh) 
