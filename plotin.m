@@ -6,7 +6,7 @@ addpath figures
 load('yy.mat')
 
 % data = soldt01Theat05;
-data = soldt1Theat10;
+data = soldt1Theat05ImplicitEuler;
 
 rawPressure    = data(:,1:2:end);
 rawTemperature = data(:,2:2:end);
@@ -22,7 +22,7 @@ xx  = linspace(0, 300, Nx);
 
 [gridX, gridY] = meshgrid(xx, yy);
 
-obj = VideoWriter('press_transient_1.avi');
+obj = VideoWriter('temp_transient_11.avi');
 obj.Quality = 100;
 obj.FrameRate = 1/dt;
 open(obj);
@@ -34,7 +34,7 @@ pos = get(fig,'Position');
 set(fig,'PaperPositionMode','Auto','PaperUnits','centimeters','PaperSize',[pos(3), pos(4)])
 
 for i = 1:numtimesteps
-    gridP = reshape(rawPressure(i,:), [Nx, Ny]);
+    gridP = reshape(rawTemperature(i,:), [Nx, Ny]);
     
     set(groot,'defaultAxesTickLabelInterpreter','latex');  
     
@@ -50,14 +50,14 @@ for i = 1:numtimesteps
     
     xlabel('x-dimension',     'Interpreter','latex')
     ylabel('y-dimension',     'Interpreter','latex')
-    zlabel('pressure',     'Interpreter','latex')
+    zlabel('temperature',     'Interpreter','latex')
     
     title(sprintf('t = %.2f s', t0), 'Interpreter','latex')
     t0 = t0 + dt;
 
     colormap viridis
-    zlim([0 16])
-    caxis([0 16])
+    zlim([0 0.8])
+    caxis([0 0.8])
     % shading interp;
     colorbar;
     hold off
@@ -154,20 +154,23 @@ hold on;
 plot(yy(30:end), BL(30:end,3), 'LineWidth', 1.5, 'Color', colors(3))
 hold on;
 plot(yy(30:end), BL(30:end,4), 'LineWidth', 1.5, 'Color', colors(4))
+hold on;
+plot(yy(30:end), BL(30:end,4), 'LineWidth', 1.5, 'Color', colors(1), 'LineStyle','--')
+
 
 xlim([82, 152])
 
 xlabel('y-direction', 'Interpreter', 'latex')
 ylabel('temperature', 'Interpreter', 'latex')
 
-legend('$\lambda$ = 10', '$\lambda$ = 1', '$\lambda$ = 0.1', '$\lambda$ = 0.001', ...
+legend('$\lambda$ = 0.001', '$\lambda$ = 0.1', '$\lambda$ = 1', '$\lambda$ = 10', '$\lambda$ with Vovas', ...
     'Location', 'best',...
     'Interpreter', 'latex')
 
-grid on
-
-set(gcf, 'Renderer', 'painters')
-print(fig, 'boundary_layer_effect' ,'-dpdf','-r0')
+% grid on
+% 
+% set(gcf, 'Renderer', 'painters')
+% print(fig, 'boundary_layer_effect' ,'-dpdf','-r0')
 
 
 %% Mesh plot

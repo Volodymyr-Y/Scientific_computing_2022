@@ -21,6 +21,12 @@ begin
 	GridVisualize.default_plotter!(PlutoVista)
 end;
 
+# ╔═╡ a39f1f1a-f697-400e-bf71-b7297ea4e443
+begin 
+	using DelimitedFiles
+    #writedlm("sol_dt_1_Theat_0_5_ImplicitEuler.csv",  sol, ',')
+end;
+
 # ╔═╡ 18c3a1f0-5ce4-4fcb-bf8c-061e4d6d485d
 TableOfContents()
 
@@ -92,8 +98,8 @@ end
 
 # ╔═╡ f6dfa868-c401-437b-8feb-0f7cb4cb98eb
 begin
-	N_x = 45
-	N_y = 45
+	N_x = 30
+	N_y = 15
 end;
 
 # ╔═╡ 40927741-b807-4ea5-9ab9-cfd38428c627
@@ -113,10 +119,10 @@ md"""
 
 # ╔═╡ 952a8698-77a2-4d0d-8eb5-674bbd58016e
 begin
-	dt!        = 0.1
+	dt!        = 1
 	tend       = 10
 	diffeqFlag = true
-	method     = Rosenbrock23()
+	method     = Trapezoid()
 	# Other nice methods:
 	#    Rosenbrock23(),
 	#    RadauIIA3(),
@@ -199,28 +205,27 @@ and convective heat equation. It assumes a rectangular domain.
 function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag = false, method = ImplicitEuler(), tend = 10.0, dt! = 1.0)
 
 		# Grid definition
-		X         = collect(range(0, 300, length = Nx))
+		X         = range(0.0, stop = 300.0, length = Nx)
 		
-		hmax      = 150/(Ny+1)
-		hmin      = hmax * 0.001
-		Y_coarse  = collect(range(0, 125, length = Ny))
-		Y_fine    = geomspace(125, 150, hmax, hmin)
+		# hmax      = 150/(Ny+1)
+		# hmin      = hmax * 0.001
+		# Y_coarse  = collect(range(0, 125, length = Ny))
+		# Y_fine    = geomspace(125, 150, hmax, hmin)
 		
+		# grid = simplexgrid(X,glue(Y_coarse, Y_fine))
+
 	
-		grid = simplexgrid(X,glue(Y_coarse, Y_fine))
+		Y         = range(0.0, stop = 150.0, length = Ny)
+		grid      = simplexgrid(X,Y)
 
 		function flux!(f, u, edge)
-			#ρ_T = ρ_ref*(1- α*(0.5*(u[2,1]+u[2,2]) - T_ref))
 			g_h = project(edge,g)
-			#q_h = -ρ_ref*k*(u[1,1]-u[1,2] - ρ_T*g_h)
-			#f[1] = -q_h
-			#f[2] = λ*(u[2,1] - u[2,2]) - 0.5*(u[2,1]+u[2,2])*c*q_h
+			T   = 0.5*(u[2,1]+u[2,2])
+			∇p  = u[1,1]-u[1,2]
 
-			T = 0.5*(u[2,1]+u[2,2])
-			∇p = u[1,1]-u[1,2]
-			
-			f[2] = λ/c*(u[2,1]-u[2,2]) + ρ_ref*k*0.5*(u[2,1]+u[2,2])*(u[1,1]-u[1,2])-ρ_ref^2*k*0.5*(u[2,1]+u[2,2])*g_h+ρ_ref*k*α*0.5*(u[2,1]^2+u[2,2]^2)*g_h
-			f[1] = u[1,1]-u[1,2] + α*0.5*(u[2,1]+u[2,2])*g_h
+			f[1] = ∇p + α*T*g_h
+			f[2] = λ/c*(u[2,1]-u[2,2])  #+ 
+			# ρ_ref*k*T*∇p - ρ_ref^2*k*T*g_h+ρ_ref*k*α*0.5*(u[2,1]^2+u[2,2]^2)*g_h
 		end
 
 		function storage!(f, u, node)
@@ -230,37 +235,58 @@ function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag = false
 	
 		# Boundary conditions definition
 		function bcondition!(f, u, bnode)
-			
-			v = ramp(bnode.time,du=(0,Tₕₑₐₜ),dt=(0,1.0)) 
-			
-			if diffeqFlag
-				boundary_dirichlet!(f,u,bnode,species=2,region=1,value= Tₕₑₐₜ)
-			else
-				boundary_dirichlet!(f,u,bnode,species=2,region=1,value= v)
-			end
-			
-			boundary_dirichlet!(f,u,bnode,species=2,region=3,value=0)
-			boundary_dirichlet!(f,u,bnode,species=1,region=3,value=0)
+			# boundary_neumann!(f,u,bnode,species=   1,region=1,value=0.0)
+			boundary_dirichlet!(f,u,bnode,species= 2,region=1,value= Tₕₑₐₜ)
+
+			# boundary_neumann!(f,u,bnode,species=   1,region=2,value=0.0)
+			# boundary_neumann!(f,u,bnode,species=   2,region=2,value=0.0)
+
+			boundary_dirichlet!(f,u,bnode,species= 2, region=3,value=0.0)
+			boundary_dirichlet!(f,u,bnode,species= 1, region=3,value=0.0)
+
+			# boundary_neumann!(f,u,bnode,species=   1,region=4,value=0.0)
+			# boundary_neumann!(f,u,bnode,species=   2,region=4,value=0.0)
 		end
+
+	    #### discretization functions for boundary species at active boundary ####
+    	function bflux!(f,u,bedge)
+        	f[1] = 0.0
+			f[2] = 0.0
+    	end
 	
 		# Voronoi system definiion
-		system = VoronoiFVM.System(grid; 
-		                           flux=flux!,  
-		                           bcondition = bcondition!,
-		                           storage = storage!,
-	                               species=[1,2])
+		system  = VoronoiFVM.System(grid; 
+									flux=flux!,
+									storage = storage!,
+									bcondition = bcondition!,
+	                                species=[1,2])
+
+	
+		physics = VoronoiFVM.Physics(flux = flux!,
+									 storage = storage!)
+	
+	    system = VoronoiFVM.System(grid, physics)
+    	
+		enable_species!(system; species = 1)
+		enable_species!(system; species = 2)
+		
+		
+		boundary_dirichlet!(system, 2, 1, Tₕₑₐₜ)
+		boundary_dirichlet!(system, 2, 3, 0.0)
+		boundary_dirichlet!(system, 1, 3, 0.0)
+
 
 		# Main solver
 	    if steadyStateFlag
 			# Steady state solution
-			sol = VoronoiFVM.solve(system,inival = 0.1;log = true)
-			nf  = nodeflux(system,sol)
+			sol  = VoronoiFVM.solve(system, inival=0.1; log = true)
+			nf   = nodeflux(system,sol)
 			hist = history(system)
 			
-			return grid,sol,nf,glue(Y_coarse, Y_fine)
+			return grid, sol, nf, grid
+		
 		else
 			# Transient solution
-			
 			function bcondition_steady!(f, u, bnode)
 					boundary_dirichlet!(f,u,bnode,species=2,region=1,value=0)
 					boundary_dirichlet!(f,u,bnode,species=2,region=3,value=0)
@@ -268,7 +294,7 @@ function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag = false
 			end
 
 			system_steady = VoronoiFVM.System(grid; 
-		                           flux=flux!,  
+		                           flux=flux!,
 		                           bcondition = bcondition_steady!,
 		                           storage = storage!,
 	                               species=[1,2])
@@ -276,10 +302,9 @@ function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag = false
 			inival!  = VoronoiFVM.solve(system_steady)
 			
 			if diffeqFlag
-			
 				problem = ODEProblem(system,inival!,(0.0,tend))
 				odesol  = DifferentialEquations.solve(problem, method, 
-					      dt = dt!, adaptive = false)
+					                                  dt = dt!, adaptive = false)
 				sol     = reshape(odesol,system)
 				
 			else
@@ -294,7 +319,7 @@ function porousMedium(Nx, Ny, Tₕₑₐₜ, steadyStateFlag, diffeqFlag = false
 				push!(nf,nodeflux(system,sol(t)))
 			end
 			
-			return grid,sol,nf,glue(Y_coarse, Y_fine)
+			return grid, sol, nf, grid
 		end
 end
 
@@ -342,6 +367,9 @@ grid, sol, nf,Y_grid = porousMedium(N_x, N_y, T_heat,
 	                         steadyState, 
 	                         diffeqFlag, method, tend, dt!);
 
+# ╔═╡ 50a102b7-8462-462c-9d92-9868df487e5c
+gridplot(grid,Plotter=PyPlot,resolution=(800,400))
+
 # ╔═╡ 8c484e8b-089d-4f01-91e0-f06ad8f0c7f1
 if steadyState
 	tsol = sol
@@ -351,6 +379,46 @@ else
 	index = convert(Int64, round((tend/dt!*t_plot/tend), digits=0))+1
 	tnf   = nf[index]
 end;
+
+# ╔═╡ 41f6b76f-f058-48e3-92b0-e17db99588c1
+begin
+	x    = collect(range(0, 300, length = N_x))
+	y    = collect(range(0, 150, length = N_y))
+	PyPlot.clf()
+
+	ax = PyPlot.axes()
+	#ax.set_aspect("equal")
+
+	Z = reshape(tsol[1,:], (N_x, 450÷N_x))'
+	Z = Z[:,1]
+
+	Z2 = reshape(tsol[2,:], (N_x, 450÷N_x))'
+	Z2 = Z2[:,1]
+	
+	PyPlot.plot(y, Z, color = "k", label = "pressure")
+	PyPlot.plot(y, Z2, color = "r",linestyle = "--", label = "temperature")
+	
+	PyPlot.set_cmap("RdBu_r")
+
+
+	# PyPlot.suptitle("Steady state pressure distribution for T(heat)= " *string(T_heat) )
+
+	PyPlot.tick_params(direction= "in", which= "minor", length= 2, bottom= true, top= true, right= true, left= true)
+    PyPlot.tick_params(direction= "in", which= "major", length= 4, bottom= true, top= true, right= true, left=true)
+
+	# PyPlot.xlim([148, 150])
+	# PyPlot.ylim([0.0, 0.01])
+
+	PyPlot.xlabel("y-direction slice")
+	PyPlot.ylabel("nondimensional species")
+
+	PyPlot.legend()
+
+	#PyPlot.colorbar()
+	
+	PyPlot.gcf()
+
+end
 
 # ╔═╡ 6029fe47-2837-4ec4-8620-c885f37285ba
 plothistory(h)=scalarplot(1:length(h),h,resolution=(500,200),
@@ -382,10 +450,13 @@ begin#plotting pressure
 						  ylabel = "y",
 	                      title = "pressure");
 	
-	scalarplot!(vis1, grid, tsol[1,:],colormap=:viridis)
+	scalarplot!(vis1, grid, tsol[1,:],colormap=:viridis, levels = 10)
 
 	reveal(vis1)
 end
+
+# ╔═╡ 72c6c883-f60a-4226-954d-c877b8912895
+scalarplot(grid, tsol[1,:],Plotter=PyPlot)
 
 # ╔═╡ 6cbcb632-92fb-46ea-b8b3-f6b0373fc818
 if steadyState
@@ -451,54 +522,10 @@ md"""
 ### Data export
 """
 
-# ╔═╡ a02e6e77-23a2-4bc5-a9d7-f068fe03ad61
-sol
-
 # ╔═╡ ce222158-26ce-4d96-95b3-3187749c0778
 md"""
-### Bonus: Publication-quality plot example
+#  Other approach
 """
-
-# ╔═╡ 2ff069f4-8306-4500-9db1-b3b247db758f
-begin
-	x    = collect(range(0, 300, length = N_x))
-
-	
-	PyPlot.clf()
-
-	ax = PyPlot.axes()
-	#ax.set_aspect("equal")
-
-	Z = reshape(tsol[2,:], (N_x, 4320÷N_x))'
-	Z = Z[:,1]
-	
-	PyPlot.plot(Y_grid, Z, color = "k")
-
-	PyPlot.set_cmap("RdBu_r")
-
-
-	PyPlot.suptitle("Steady state pressure distribution for T(heat)= " *string(T_heat) )
-
-	PyPlot.tick_params(direction= "in", which= "minor", length= 2, bottom= true, top= true, right= true, left= true)
-    PyPlot.tick_params(direction= "in", which= "major", length= 4, bottom= true, top= true, right= true, left=true)
-
-	#PyPlot.xlim([148, 150])
-	# PyPlot.ylim([0, 150])
-
-	PyPlot.xlabel("y")
-	PyPlot.ylabel("pressure")
-
-	#PyPlot.colorbar()
-	
-	PyPlot.gcf()
-
-end
-
-# ╔═╡ a39f1f1a-f697-400e-bf71-b7297ea4e443
-begin 
-	using DelimitedFiles
-    writedlm("BL_001.csv",  Z, ',')
-end;
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1782,6 +1809,8 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═4a55ed84-a2e9-11ec-3f65-4f384565073e
 # ╠═340720e1-5ede-4cd7-b1c0-6aa066aa1331
 # ╠═d119f14c-f863-47ce-82d3-02e52f9fd113
+# ╠═50a102b7-8462-462c-9d92-9868df487e5c
+# ╠═41f6b76f-f058-48e3-92b0-e17db99588c1
 # ╟─14dcce2e-99ca-4bd8-b357-fb260de9caad
 # ╟─0e8be14b-221d-459d-9563-c6ec65a21e48
 # ╠═bc2febeb-2b89-4cfc-a28e-adb19182334f
@@ -1803,7 +1832,8 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═6029fe47-2837-4ec4-8620-c885f37285ba
 # ╟─5caccc73-0e3e-4be5-bfd7-ac8d5819f62f
 # ╟─8b171cb5-aaf3-41fc-ba6b-8ad847ea3f8d
-# ╟─92c80dbe-ab43-4606-a287-771defd12f72
+# ╠═92c80dbe-ab43-4606-a287-771defd12f72
+# ╠═72c6c883-f60a-4226-954d-c877b8912895
 # ╟─6cbcb632-92fb-46ea-b8b3-f6b0373fc818
 # ╠═50ac52d2-9405-45e1-9160-d2cd5d388427
 # ╟─172c23cd-5fbf-4405-b4a1-15db2199e7f7
@@ -1814,9 +1844,7 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╟─d1359573-87e5-4b42-9f29-dd12e4a0a223
 # ╠═b0f33228-9cda-4fe6-a95f-8c49e1f55032
 # ╟─4f926fc9-fc55-40f4-b08a-033acf32edf2
-# ╠═a02e6e77-23a2-4bc5-a9d7-f068fe03ad61
 # ╠═a39f1f1a-f697-400e-bf71-b7297ea4e443
 # ╟─ce222158-26ce-4d96-95b3-3187749c0778
-# ╠═2ff069f4-8306-4500-9db1-b3b247db758f
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
