@@ -98,11 +98,11 @@ function assemble_nonlinear_system(grid,bc_bott::AbstractFloat,bc_top::AbstractF
     end
     return system!
 end
-n = 500
+n = 100
 n_fine = n÷5
 n_coarse = n - n_fine
-grid1 = LinRange(0,10,n_fine)
-grid2 = LinRange(10,150,n_coarse+1)[2:end]
+grid1 = LinRange(0,2,n_fine)
+grid2 = LinRange(2,150,n_coarse+1)[2:end]
 grid = vcat(grid1,grid2)
 bc_bott = 0.5
 bc_top = 0.0
