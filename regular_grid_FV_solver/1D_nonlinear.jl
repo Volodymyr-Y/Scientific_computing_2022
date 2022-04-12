@@ -1,81 +1,14 @@
-using CairoMakie
 using SparseArrays
 using ForwardDiff
 using LinearAlgebra
 using DifferentialEquations
-using GLMakie
-using PyPlot
 using Sundials
 using NLsolve
 using BenchmarkTools
 using TimerOutputs
+using DelimitedFiles
 
-# To be repeated--------------------------------------------
-function plot_results(grid, solution, nx)
-
-    function meshgrid(xin, yin)
-        nx  =   length(xin)
-        ny  =   length(yin)
-        xout=   zeros(ny,nx)
-        yout=   zeros(ny,nx)
-        for jx = 1:nx
-            for ix = 1:ny
-                xout[ix,jx] = xin[jx]
-                yout[ix,jx] = yin[ix]
-            end
-        end
-        return (x=xout, y=yout)
-    end
-
-    n  = length(grid)
-    x  = LinRange(0.0, 300.0, nx)
-
-    xx, yy = meshgrid(x, grid)
-    T      = zeros(size(xx))
-    P      = zeros(size(xx))
-    
-    for i in 1:nx
-        T[:, i]  = solution[1:n]
-        P[:, i]  = solution[n+1:end]
-    end
-
-    PyPlot.clf()
-    PyPlot.plot_surface(grid, x, transpose(T), cmap = PyPlot.cm.viridis)
-    PyPlot.xlabel("y (-)")
-	PyPlot.ylabel("x (-)")
-	PyPlot.zlabel("temperature (-)")
-    PyPlot.title(" t = 0.26 s")
-
-    PyPlot.gcf()
-end
-
-# To be repeated
-function create_animatrion(solution,grid,t_end,filename)
-    n = length(grid)
-    P_max = max(solution(0.0)[n+1],solution(0.0)[end],solution(t_end)[n+1],solution(t_end)[end])
-    println("pmax ",P_max)
-    T_max = max(solution(0.0)[1],solution(t_end)[n])
-    N_frames = 7*30
-    fps = 30
-    t_sample = LinRange(0,t_end,N_frames)
-    fig = Figure(resolution = (1200, 800))
-    time = Observable(0.0)
-    u = @lift(solution($time))
-    T = lift(a -> a[1:n] ,u)
-    P = lift(a -> a[n+1:end] ,u)
-    
-    ax1 = GLMakie.Axis(fig[1,1],ylabel = "temperature",title = @lift("t = $(round(($time), digits = 1))"*" s"))
-    ax2 = CairoMakie.Axis(fig[2,1],ylabel = "pressure")
-    ylims!(ax2,(0,P_max*1.1))
-    lines!(ax1,grid, T)
-    lines!(ax2,grid, P)
-    t_sample = LinRange(0,t_end,N_frames)
-    record(fig,filename, t_sample;framerate = fps) do t
-    time[] = t
-    end
-end
-# ----------------------------------------------------------
-
+include("plotting.jl")
 
 """
 FVM discretization of the considered nonlinear system (heat and mass transfer in a porous medium
@@ -266,7 +199,7 @@ end
 to = TimerOutput()
 
 n           = 1000
-nx          = 300
+nx          = 100
 n_fine      = n÷5
 n_coarse    = n - n_fine
 
@@ -306,6 +239,10 @@ display(solution)
 println("\n Performance report:")
 display(to)
 
-# create_animatrion(solution,grid,t_end,"regular_grid_FV_solver/1D_nonlinear.gif")
+plot_results(grid, solution(3.3), nx; savepdf = false, projection = "3d")
 
-plot_results(grid, solution[28], nx)
+# Work in progress. In the meanwhile, I'll export the solution as csv and animate the plot in Python (easiest solution)
+#
+# animate_solution(grid, solution, nx; specie = "temperature", projection = "2d")
+
+writedlm("solution.csv",  solution, ',')
