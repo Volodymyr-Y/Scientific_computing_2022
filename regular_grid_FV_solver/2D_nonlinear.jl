@@ -137,14 +137,14 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
 
         F1 = (λ/c)*(∇_left(T)+∇_right(T)+∇_top(T)+∇_bottom(T)) +
         ρ_ref*k*(L(T).*∇_left(P) + R(T).*∇_right(P)+T(T).*∇_top(P) + B(T).*∇_bottom(P))-
-        (ρ_ref^2)*k*(L(T)-R(T)) +
-        ρ_ref*k*α*(L(T).^2 - R(T).^2) 
+        (ρ_ref^2)*k*(B(T)-T(T)) +
+        ρ_ref*k*α*(B(T).^2 - T(T).^2) 
 
         F1[end,:] += (1/ϵ) * T[1] - (1/ϵ) * bc_bott
         F1[1,:] += (1/ϵ) * T[end] - (1/ϵ) * bc_top
 
         F2 = ( ∇_left(P)+∇_right(P)+∇_top(P)+∇_bottom(P) )+
-        α*(L(T)-R(T))
+        α*(B(T)-T(T))
 
         F2[1,:] += (1/ϵ) * P[1,:] 
         reshape(F1,N[1]*N[2])
