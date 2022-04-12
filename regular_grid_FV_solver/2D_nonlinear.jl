@@ -17,9 +17,9 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
     ρ_ref = 1.0
     ϵ = 10.0^(-6)
     h_x = gridX[:,2:N[2]] - gridX[:,1:N[2]-1]     
-    h_y = gridY[2:N[1],:] - gridY[1:(N[1]-1),:]  
-    h_top = vcat(h_y,h_y[1,:]') # array of distances between collocation points of size N shifted to the top
-    h_bottom = vcat(h_y[end,:]',h_y)  # array of distances between collocation points of size N shifted to the bottom
+    h_y = gridY[1:(N[1]-1),:] - gridY[2:N[1],:]  
+    h_top = vcat(h_y[1,:]',h_y) # array of distances between collocation points of size N shifted to the top
+    h_bottom = vcat(h_y,h_y[end,:]')  # array of distances between collocation points of size N shifted to the bottom
     h_left = hcat(h_x[:,1],h_x) # array of distances between collocation points of size N shifted to the left
     h_right = hcat(h_x,h_x[:,end])  # array of distances between collocation points of size N shifted to the right
 
@@ -65,7 +65,7 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
 
     function L(u)
         u1 = zeros(typeof(u[1]),N)
-        u1[:,1] *= 2.0
+        u1[:,1] = u[:,1]*2.0
         for i in 2:N[1]
             for j in 1:N[2]
                 u1[i,j] = u[i-1,j]+u[i,j] 
@@ -76,7 +76,7 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
 
     function R(u)
         u1 = zeros(typeof(u[1]),N)
-        u1[:,end] *= 2.0
+        u1[:,end] = u[:,end]*2.0
         for i in 1:N[1]-1
             for j in 1:N[2]
                 u1[i,j] = u[i+1,j]+u[i,j] 
@@ -87,7 +87,7 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
 
     function B(u)
         u1 = zeros(typeof(u[1]),N)
-        u1[1,:] *= 2.0
+        u1[end,:] = u[end,:]*2.0
         for j in 2:N[2]
             for i in 1:N[1]
                 u1[i,j] = u[i,j-1]+u[i,j] 
@@ -98,7 +98,7 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
 
     function North(u)
         u1 = zeros(typeof(u[1]),N)
-        u1[:,end] *= 2.0
+        u1[:,1] = u[:,1]*2.0
         for j in 1:N[2]-1
             for i in 1:N[1]
                 u1[i,j] = u[i,j+1]+u[i,j] 
@@ -125,6 +125,7 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
         α*(B(T)-North(T))
 
         F2[1,:] += (1/ϵ) * P[1,:] 
+
         F1 = reshape(F1,N[1]*N[2])
         F2 = reshape(F2,N[1]*N[2])
         return(vcat(F1,F2))
@@ -154,14 +155,14 @@ function newton(A,b,u0; tol=1.0e-8, maxit=100)
     throw("convergence failed")
 end
 
-n = 30
-n_fine = n÷5
+n = 50
+n_fine = n÷3
 n_coarse = n - n_fine
-grid1y = LinRange(0.0,1.0,n_fine)
-grid2y = LinRange(1.0,150.0,n_coarse+1)[2:end]
-gridy = vcat(grid1y,grid2y)
+grid1y = LinRange(0.0,10.0,n_fine)
+grid2y = LinRange(10.0,150.0,n_coarse+1)[2:end]
+gridy = reverse(vcat(grid1y,grid2y))
 gridx = LinRange(0,300.0,n)
-
+gridy = reverse(LinRange(0,150.0,n))
 
 gridX = gridx'.*ones(n_fine+n_coarse)
 gridY = ones(n)'.*gridy
@@ -184,16 +185,10 @@ Temperature = reshape(steady_state_solution[1:n*n],(n,n))
 pressure = reshape(steady_state_solution[n*n+1:end],(n,n))
 
 fig = Figure()
-#x = LinRange(0, 300, N_x)
-#x = vec(transpose(x' .* ones(N_y)))
-#y = LinRange(0, 150, N_y)
-#y = vec(transpose(ones(N_x)' .* y))
-# change view angles in line below: camera = (⋅,⋅)
 println("Solution obtained, start plotting")
 ax = Axis3(fig[1,1]; aspect=(1, 1, 1),xlabel = "x",ylabel = "y",zlabel = "Temperature")
-hm = surface!(ax,gridX, gridY, Temperature )
+hm = surface!(ax,gridX, gridY, pressure )
 Colorbar(fig[1, 2],hm )
-save(filename, fig)
 display(fig)
 
 #@code_warntype assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top)
