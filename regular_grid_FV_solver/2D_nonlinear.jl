@@ -10,7 +10,7 @@ using BenchmarkTools
 
 function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Number)
     N = size(gridX)
-    λ = 0.01
+    λ = 1
     c = 0.001
     α = 0.01
     k = 100.0
@@ -67,9 +67,7 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
         u1 = zeros(typeof(u[1]),N)
         u1[:,1] = u[:,1]*2.0
         for i in 2:N[1]
-            for j in 1:N[2]
-                u1[i,j] = u[i-1,j]+u[i,j] 
-            end
+            u1[i,:] = u[i-1,:]+u[i,:] 
         end
         return u1 / 2.0
     end
@@ -78,9 +76,7 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
         u1 = zeros(typeof(u[1]),N)
         u1[:,end] = u[:,end]*2.0
         for i in 1:N[1]-1
-            for j in 1:N[2]
-                u1[i,j] = u[i+1,j]+u[i,j] 
-            end
+            u1[i,:] = u[i+1,:]+u[i,:] 
         end
         return u1 / 2.0
     end
@@ -89,16 +85,16 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
         u1 = zeros(typeof(u[1]),N)
         u1[end,:] = u[end,:]*2.0
         for i in 1:N[1]-1
-            u1[i,:] += u[i+1,:] 
+                u1[i,:] = u[i+1,:] + u[i,:]
         end
         return u1 / 2.0
     end
-
+    
     function North(u)
         u1 = zeros(typeof(u[1]),N)
         u1[:,1] = u[:,1]*2.0
         for i in 2:N[1]
-            u1[i,:] += u[i-1,:] 
+            u1[i,:] = u[i-1,:] + u[i,:]
         end
         return u1 / 2.0
     end
@@ -109,10 +105,10 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
         T = reshape(T,(N[1],N[2]))
         P = reshape(P,(N[1],N[2]))
         
-        F1 = (λ/c)*(∇_left(T)+∇_right(T)+∇_top(T)+∇_bottom(T)) #+
-        #ρ_ref*k*(L(T).*∇_left(P) + R(T).*∇_right(P)+North(T).*∇_top(P) + B(T).*∇_bottom(P))-
-        #(ρ_ref^2)*k*(B(T)-North(T)) +
-        #ρ_ref*k*α*(B(T).^2 - North(T).^2) 
+        F1 = (λ/c)*(∇_left(T)+∇_right(T)+∇_top(T)+∇_bottom(T)) +
+        ρ_ref*k*(L(T).*∇_left(P) + R(T).*∇_right(P)+North(T).*∇_top(P) + B(T).*∇_bottom(P))-
+        (ρ_ref^2)*k*(B(T)-North(T)) +
+        ρ_ref*k*α*(B(T).^2 - North(T).^2) 
 
         F1[end,:] += (1/ϵ) * T[end,:] .- (1/ϵ) * bc_bott
         F1[1,:] += (1/ϵ) * T[1,:] .- (1/ϵ) * bc_top
@@ -151,14 +147,14 @@ function newton(A,b,u0; tol=1.0e-8, maxit=100)
     throw("convergence failed")
 end
 
-n = 50
+n = 30
 n_fine = n÷3
 n_coarse = n - n_fine
 grid1y = LinRange(0.0,10.0,n_fine)
 grid2y = LinRange(10.0,150.0,n_coarse+1)[2:end]
-gridy = reverse(vcat(grid1y,grid2y))
+#gridy = reverse(vcat(grid1y,grid2y)) Uncomment this for nonuniform grid but also comment uniform one
 gridx = LinRange(0,300.0,n)
-gridy = reverse(LinRange(0,150.0,n))
+gridy = reverse(LinRange(0,150.0,n)) #uniform grid
 
 gridX = gridx'.*ones(n_fine+n_coarse)
 gridY = ones(n)'.*gridy
@@ -182,8 +178,8 @@ pressure = reshape(steady_state_solution[n*n+1:end],(n,n))
 
 fig = Figure()
 println("Solution obtained, start plotting")
-ax = Axis3(fig[1,1]; aspect=(1, 1, 1),xlabel = "x",ylabel = "y",zlabel = "Temperature")
-hm = surface!(ax,gridX, gridY, pressure )
+ax = Axis3(fig[1,1]; aspect=(1, 1, 1),xlabel = "x",ylabel = "y",zlabel = "pressure")
+hm = surface!(ax,gridX, gridY, Temperature )
 Colorbar(fig[1, 2],hm )
 display(fig)
 
