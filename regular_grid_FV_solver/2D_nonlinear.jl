@@ -88,10 +88,8 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
     function B(u)
         u1 = zeros(typeof(u[1]),N)
         u1[end,:] = u[end,:]*2.0
-        for j in 2:N[2]
-            for i in 1:N[1]
-                u1[i,j] = u[i,j-1]+u[i,j] 
-            end
+        for i in 1:N[1]-1
+            u1[i,:] += u[i+1,:] 
         end
         return u1 / 2.0
     end
@@ -99,10 +97,8 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
     function North(u)
         u1 = zeros(typeof(u[1]),N)
         u1[:,1] = u[:,1]*2.0
-        for j in 1:N[2]-1
-            for i in 1:N[1]
-                u1[i,j] = u[i,j+1]+u[i,j] 
-            end
+        for i in 2:N[1]
+            u1[i,:] += u[i-1,:] 
         end
         return u1 / 2.0
     end
@@ -121,7 +117,7 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
         F1[end,:] += (1/ϵ) * T[end,:] .- (1/ϵ) * bc_bott
         F1[1,:] += (1/ϵ) * T[1,:] .- (1/ϵ) * bc_top
 
-        F2 = ( ∇_left(P)+∇_right(P)+∇_top(P)+∇_bottom(P) )+
+        F2 = (∇_left(P)+∇_right(P)+∇_top(P)+∇_bottom(P) )+
         α*(B(T)-North(T))
 
         F2[1,:] += (1/ϵ) * P[1,:] 
