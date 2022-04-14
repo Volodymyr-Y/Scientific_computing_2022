@@ -1,5 +1,7 @@
 using CairoMakie
 using SparseArrays
+using SparsityDetection
+using Cassette
 using ForwardDiff
 using LinearAlgebra
 using DifferentialEquations
@@ -7,6 +9,8 @@ using GLMakie
 using Sundials
 using NLsolve
 using BenchmarkTools
+using SparseDiffTools
+using FiniteDiff
 function plot_results(grid,solution,filename)
     #Makie.inline!(false)
     n = length(grid)
@@ -27,6 +31,17 @@ function plot_results(grid,solution,filename)
 
     
 end
+
+function heatmap(matrix)
+    n = size(matrix)[1]
+    x = 1:n
+    y = 1:n
+    fig = Figure()
+    ax = Axis(fig[1,1])
+    heatmap!(x,y,matrix)
+    display(fig)
+end
+
 
 function create_animatrion(solution,grid,t_end,filename)
     n = length(grid)
@@ -99,9 +114,9 @@ function new_assemble_nonlinear_system(grid,bc_bott::Number,bc_top::Number)
         return u1 / 2.0
     end
 
-    function system(x)
-        T = x[1:N]
-        P = x[N+1:end]
+    function system!(du,u)
+        T = u[1:N]
+        P = u[N+1:end]
 
         F1 = (λ/c)*(∇_left(T)+∇_right(T)) +
         ρ_ref*k*(L(T).*∇_left(P) + R(T).*∇_right(P))-
@@ -115,9 +130,11 @@ function new_assemble_nonlinear_system(grid,bc_bott::Number,bc_top::Number)
         α*(L(T)-R(T))
 
         F2[end] += (1/ϵ) * P[end] 
-
-        return(vcat(F1,F2))
+        du[:] = vcat(F1,F2)
+        nothing
+        
     end
+    return system!
 end
 function newton(A,b,u0; tol=1.0e-8, maxit=100)
 
@@ -141,65 +158,10 @@ function newton(A,b,u0; tol=1.0e-8, maxit=100)
     throw("convergence failed")
 end
 
-function assemble_nonlinear_system(grid,bc_bott,bc_top)
-    N = length(grid)
-    #println(N)
-    λ = 0.01
-    c = 0.001
-    α = 0.01
-    k = 100.0
-    ρ_ref = 1.0
-    #bc_bott = 0.5
-    #bc_top = 0.0
-    ϵ = 10.0^(-6)
-    #x = LinRange(0,150,N)
-    #x = Float64[0,100,110,120,150]
-    h = grid[2:N] - grid[1:N-1]    # array of distances between collocation points of size N-1
-    h_top = vcat(h,[h[end]]) # array of distances between collocation points of size N shifted to the top
-    h_bott = vcat([h[1]],h)  # array of distances between collocation points of size N shifted to the bottom
-    #println(1 ./ h_bott)
-    # Let's say u is a species such as pressure or temperature 
-    # ∇_left is a matrix such that ∇_left @ u will yeild ∇u (flow) throgh left boundary in each cell
-    ∇_left = spdiagm(-1 => ones(Float64,N-1)./h , 0 => -ones(Float64,N)./ h_top)
-    ∇_left[1,1] = 0.0
-    #display(∇_left)
-    # ∇_right is a matrix such that ∇_left @ u will yeild ∇u (flow) throgh right boundary in each cell
-    ∇_right = spdiagm(1 => ones(Float64,N-1) ./h , 0 => -ones(Float64,N) ./ h_bott)
-    ∇_right[end,end] = 0.0
-    #display(∇_right+∇_left)
-    L = 0.5*spdiagm(-1 => ones(Float64,N-1) , 0 => ones(Float64,N))
-    L[1,1] = 1.0
-    R = 0.5*spdiagm(1 => ones(Float64,N-1) , 0 => ones(Float64,N))
-    R[end,end] = 1.0
-    #display(L-R)
-    Z = spzeros(Float64,(N,N))
-    penalty_matrix = spzeros(Float64,(2*N,2*N))
-    penalty_matrix[1,1] = 1.0/ϵ
-    penalty_matrix[N,N] = 1.0/ϵ
-    penalty_matrix[end,end] = 1.0/ϵ
-    penalty_vector = zeros(Float64,2*N)
-    penalty_vector[[1,N,2*N]] = (1/ϵ)*[bc_bott,bc_top,0.0]
-    println("assembled matrix")
-    println(typeof( [L Z; Z Z]*ones(Float64,2*N).^2 .*  [L Z; L Z]*ones(Float64,2*N)))
-    function system!(x)
-        F = (λ/c)*([∇_right+∇_left Z;Z Z]*x)+
-        ρ_ref*k *( [L Z; Z Z]*x .* [Z ∇_left;Z Z]*x +
-                 [R Z; Z Z]*x .* [Z ∇_right;Z Z]*x) -
-        (ρ_ref^2)*k*(([L Z; Z Z]-[R Z; Z Z]) *x) +
-        ρ_ref*k*α*(([L Z; Z Z]*x).^2 - ([R Z; Z Z]*x).^2) +
-        ([Z Z; Z ∇_right+∇_left]*x)+ 
-        α*([Z Z; L-R Z])*x +
-        penalty_matrix*x - penalty_vector
-        
-        return F
-    end
-    return system!
-end
-
 function create_DAE_function(f,n) # create a DAE function f(du,u,p,t) = 0
     E = spdiagm(0 => vcat(ones(Float64,n),zeros(Float64,n)))
     function DAE(du,u,p,t)
-        return E*du - f(u)
+        return E*du - f(u,p,t)
     end
     return DAE
 end
@@ -207,36 +169,90 @@ end
 
 function create_constraint_function(f,x)
     n = length(x)
-    println(n)
-    function a(y)
-        z = vcat(x,y)
-        return f(z)[n+1:end]
+
+    function g!(dy,y)
+        type1 = typeof(y[1])
+        z = vcat(type1.(x),y)
+        dz = zeros(type1,n*2)
+        f(dz,z)
+        dy[:] = dz[n+1:end]
+        nothing
     end
-    return a
+
+    return g!
+end
+
+function get_jacobian_prototype(n)
+    A = spdiagm(0 => ones(Float64,n),-1 => ones(Float64,n-1),1 => ones(Float64,n-1))
+    return [A A ; A A]
+end
+
+function assemble_sparse_jacobian_function(f,n,jacobian_prototype)
+    # this function returns sparse jacobian for function f
+    colors = matrix_colors(jacobian_prototype)
+    function jacobian(x)
+        println(typeof(x[1]))
+        jac = spdiagm(0 => ones(typeof(x[1]),2*n))
+        forwarddiff_color_jacobian!(jac,x->f(x,0,0), x, colorvec = colors)
+        return jac
+    end
+    return jacobian
+    
 end
 
 function get_time_solution(f,T_0,time_interval)
     n = length(T_0) # number of collocation points
-    DAE = create_DAE_function(f,n) # create DAE function
-    g = create_constraint_function(f,T_0)
+    
+    # jacobian prototype for time solution in 1d
+    jac_prot = get_jacobian_prototype(n) 
+
+    # jacobian prototype for constraint function g() in 1d
+    g_jac_prot = spdiagm(0 => ones(Float64,n),-1 => ones(Float64,n-1),1 => ones(Float64,n-1))
+
+    # jacobian coloring of g()
+    g_colors = matrix_colors(g_jac_prot)
+
+    #
+    g! = create_constraint_function(f,T_0)
+
+ 
+    g_jac = copy(g_jac_prot) # this creates a mutating container for the jacobian of g()
+
+    j!(jac,x)=      forwarddiff_color_jacobian!(jac,g!, x;
+                                        colorvec = g_colors,
+                                        sparsity = g_jac_prot)
+
+
+    j!(g_jac,rand(n))                                    
+    display(g_jac)
+    g0 = rand(n)
     println("computing consistent initial conditions for pressure") 
-    P_0 = newton(g,zeros(Float64,n),zeros(Float64,n); tol=1.0e-8, maxit=100)[1]
+    dg = OnceDifferentiable(g!, j!, g0, g0, g_jac_prot)
+    @time P_0 = nlsolve(dg,g0).zero
+    #@time P_0 = nlsolve(g!,j!,g0,autodiff = :forward).zero #
+    #println(P_0)
     println("done") 
+
     u0 = vcat(T_0,P_0)
-    du0 = f(u0)
+    E = spdiagm(0 => vcat(ones(Float64,n),zeros(Float64,n)))
+    DAE = create_DAE_function(f,n) # create DAE function
     #println(du0)
     println("start solving")
-    prob = DAEProblem(DAE,du0,u0,time_interval)
-    @time sol = solve(prob,IDA(),dt=0.1)
+    #prob = DAEProblem(DAE,du0,u0,time_interval)
+    #@time sol = solve(prob,IDA(),dt=0.2)
+    FF= ODEFunction((du,u,p,t) -> f(du,u),mass_matrix=E,jac_prototype=jac_prot)
+    prob = ODEProblem(FF,u0,time_interval)
+    @time sol = solve(prob,Rodas5(),dt=0.1,adaptive = false)
     println("done")
+    
     return sol
 end
 
 n = 1000
 n_fine = n÷5
 n_coarse = n - n_fine
-grid1 = LinRange(0.0,1.0,n_fine)
-grid2 = LinRange(1.0,150.0,n_coarse+1)[2:end]
+grid1 = LinRange(0.0,2.0,n_fine)
+grid2 = LinRange(2.0,150.0,n_coarse+1)[2:end]
 grid = vcat(grid1,grid2)
 bc_bott = 0.5
 bc_top = 0.0
@@ -245,18 +261,30 @@ t_end = 10.0
 println("size of grid: ",length(grid))
 x_0 = zeros(Float64,n*2)
 x_0[1]= bc_bott
-sys = new_assemble_nonlinear_system(grid,bc_bott,bc_top)
-
+placeholder = ones(Float64,2*n)
+sys! = new_assemble_nonlinear_system(grid,bc_bott,bc_top)
+sys!(placeholder,rand(2*n))
+#println(placeholder)
+#jac = assemble_sparse_jacobian_function(sys,n,get_jacobian_prototype(n))
+#jac(rand(2*n))
+#println(sys(x_0))
+#matrix = ForwardDiff.jacobian(x -> sys(x,0,0),rand(Float64,n*2))
+#display(get_jacobian_prototype(n))
+#display(sparse(matrix))
+#dense_to_sparse(matrix)
+#heatmap(matrix)
 #@code_warntype assemble_nonlinear_system(grid,bc_bott,bc_top)
 #@code_warntype sys(x_0)
 #sys(x_0)
-T_0 = LinRange(0.5,0.0,n)
-#solution = get_time_solution(sys,T_0,(0.0,t_end))
 
-create_animatrion(solution,grid,t_end,"regular_grid_FV_solver/1D_nonlinear.gif")
+#display(get_jacobian_prototype(n))
+T_0 = LinRange(0.5,0.0,n)
+time_solution = get_time_solution(sys!,T_0,(0.0,t_end))
+
+create_animatrion(time_solution,grid,t_end,"regular_grid_FV_solver/1D_nonlinear.gif")
 #println("calculating solution")
 #@time solution = newton(sys,zeros(Float64,n*2),x_0; tol=1.0e-8, maxit=100)[1]
-#@btime solution = nlsolve(sys,x_0,autodiff = :forward).zero
+#solution = nlsolve(sys,x_0,autodiff = :forward).zero
 
 
 #println("done")

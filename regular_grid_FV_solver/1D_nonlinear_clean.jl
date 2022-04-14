@@ -10,6 +10,21 @@ using NLsolve
 using BenchmarkTools
 using TimerOutputs
 
+function steady_solution(f!,N,bc_bott,bc_top)
+    jac_prot = get_jacobian_prototype(N) 
+    colors = matrix_colors(jac_prot)
+    j!(jac,x)=      forwarddiff_color_jacobian!(jac,f!, x;
+                                        colorvec = colors,
+                                        sparsity = jac_prot)
+    
+    x_0 = zeros(2*N) # initial guess
+    x_0[1] = bc_bott # BC's are needed for better initial guess
+    x_0[N] = bc_top
+    dg = OnceDifferentiable(f!, j!, x_0, x_0, jac_prot)
+    @time sol = nlsolve(dg,x_0).zero
+    return sol
+end
+
 # To be repeated--------------------------------------------
 function plot_results(grid, solution, nx)
 
@@ -30,7 +45,7 @@ function plot_results(grid, solution, nx)
     n  = length(grid)
     x  = LinRange(0.0, 300.0, nx)
 
-    # xx, yy = meshgrid(x, grid)
+    xx, yy = meshgrid(x, grid)
     T      = zeros(size(xx))
     P      = zeros(size(xx))
     
@@ -90,87 +105,76 @@ heated from below).
 **Output**:
     Discretized system.
 """
-function new_assemble_nonlinear_system(grid, bc_bott::Number, bc_top::Number)
-    
-    N       = length(grid)
-    λ       = 0.01
-    c       = 0.001
-    α       = 0.01
-    k       = 100.0
-    ρ_ref   = 1.0
-    ϵ       = 10.0^(-6)
-    
-    h       = grid[2:N] - grid[1:N-1]
-    h_top   = vcat(h, [h[end]])          
-    h_bott  = vcat([h[1]], h)            
+function new_assemble_nonlinear_system(grid,bc_bott::Number,bc_top::Number)
+    N = length(grid)
+    #println(N)
+    λ = 0.01
+    c = 0.001
+    α = 0.01
+    k = 100.0
+    ρ_ref = 1.0
+    ϵ = 10.0^(-6)
+    h = grid[2:N] - grid[1:N-1]
+    h_top = vcat(h,[h[end]]) # array of distances between collocation points of size N shifted to the top
+    h_bott = vcat([h[1]],h)  # array of distances between collocation points of size N shifted to the bottom
 
-    """
-    Computes the gradient/flux
-    """
-    function gradient(u; side = "left")
-
-        u_prime = zeros(typeof(u[1]), N)
-
-        if side == "left"
-            for i in 2:(N)
-                u_prime[i] = u[i-1] - u[i]
-            end
-            return u_prime ./ h_bott
-
-        elseif side == "right"
-            for i in 1:(N-1)
-                u_prime[i] = u[i+1] - u[i]
-            end
-            return u_prime ./ h_top
-        else
-            throw(DomainError(side, "The side selection for the gradient (1D) should be left or right"))
+    function ∇_left(u)
+        u1 = zeros(typeof(u[1]),N)
+        for i in 2:N
+            u1[i] = u[i-1]-u[i] 
         end
+        return u1 ./ h_bott
     end
 
+    function ∇_right(u)
+        u1 = zeros(typeof(u[1]),N)
+        for i in 1:N-1
+            u1[i] = u[i+1]-u[i] 
+        end
+        return u1 ./ h_top
+    end
 
     function L(u)
-        u1    = zeros(typeof(u[1]), N)
-        u1[1] = u[1]*2.0
-        
+        u1 = zeros(typeof(u[1]),N)
+        u1[1] = u[1]*2
         for i in 2:N
-            u1[i] = u[i-1] + u[i] 
+            u1[i] = u[i-1]+u[i] 
         end
-        
         return u1 / 2.0
     end
 
     function R(u)
-        u1      = zeros(typeof(u[1]),N)
-        u1[end] = u[end]*2.0
-
+        u1 = zeros(typeof(u[1]),N)
+        u1[end] = u[end]*2
         for i in 1:N-1
             u1[i] = u[i+1]+u[i] 
         end
-
         return u1 / 2.0
     end
 
-    function system(x)
-        
-        T = x[1:N]
-        P = x[N+1:end]
+    function system!(du,u)
+        T = u[1:N]
+        P = u[N+1:end]
 
-        F1 = (λ/c)*( gradient(T; side = "left") + gradient(T; side = "right") ) +
-             ρ_ref*k* ( L(T).*gradient(P; side = "left") + R(T).*gradient(P; side = "right") ) -
-             (ρ_ref^2)*k*(L(T) - R(T)) +
-             ρ_ref*k*α*(L(T).^2 - R(T).^2) 
+        F1 = (λ/c)*(∇_left(T)+∇_right(T)) +
+        ρ_ref*k*(L(T).*∇_left(P) + R(T).*∇_right(P))-
+        (ρ_ref^2)*k*(L(T)-R(T)) +
+        ρ_ref*k*α*(L(T).^2 - R(T).^2) 
 
-        F1[1]   += (1/ϵ) * T[1]   - (1/ϵ) * bc_bott
+        F1[1] += (1/ϵ) * T[1] - (1/ϵ) * bc_bott
         F1[end] += (1/ϵ) * T[end] - (1/ϵ) * bc_top
 
-        F2 = ( gradient(P; side = "left") + gradient(P; side = "right") ) +
-             α*(L(T) - R(T))
+        F2 = ( ∇_left(P)+∇_right(P) )+
+        α*(L(T)-R(T))
 
         F2[end] += (1/ϵ) * P[end] 
-
-        return(vcat(F1, F2))
+        du[:] = vcat(F1,F2)
+        nothing
+        
     end
+    return system!
 end
+
 
 
 """
@@ -227,47 +231,72 @@ end
 # what is this doing?
 function create_constraint_function(f,x)
     n = length(x)
-    
-    function a(y)
-        z = vcat(x,y)
-        return f(z)[n+1:end]
+
+    function g!(dy,y)
+        type1 = typeof(y[1])
+        z = vcat(type1.(x),y)
+        dz = zeros(type1,n*2)
+        f(dz,z)
+        dy[:] = dz[n+1:end]
+        nothing
     end
-    
-    return a
+
+    return g!
 end
 
-function get_time_solution(f, T_0, time_interval)
+function get_time_solution(f,T_0,time_interval)
+    n = length(T_0) # number of collocation points
+    
+    # jacobian prototype for time solution in 1d
+    jac_prot = get_jacobian_prototype(n) 
 
-    println("Solver initialized")
+    # jacobian prototype for constraint function g() in 1d
+    g_jac_prot = spdiagm(0 => ones(Float64,n),-1 => ones(Float64,n-1),1 => ones(Float64,n-1))
 
-    @timeit to "system solution" begin
-        n   = length(T_0) 
-        DAE = create_DAE_function(f,n)     
-        g   = create_constraint_function(f, T_0)
+    # jacobian coloring of g()
+    g_colors = matrix_colors(g_jac_prot)
 
-        write(stdin.buffer, 0x0C)
-        println("\t Computing consistent initial conditions for pressure") 
-        @timeit to "newton's method" P_0 = newton(g,zeros(Float64,n),zeros(Float64,n); tol=1.0e-8, maxit=100)[1]
-        u0  = vcat(T_0,P_0)
-        du0 = f(u0)
+    #
+    g! = create_constraint_function(f,T_0)
 
-        println("\n\t Solving DAE...")
+ 
+    g_jac = copy(g_jac_prot) # this creates a mutating container for the jacobian of g()
 
-        @timeit to "DAE solver" begin
-            @timeit to "assmebling" prob = DAEProblem(DAE, du0, u0, time_interval)
-            @timeit to "solving" sol  = solve(prob, IDA(), dt=0.1; verbose = true)
-        end
-        
-        println("\nSolution available. Summary and solution:\n")
+    j!(jac,x)=      forwarddiff_color_jacobian!(jac,g!, x;
+                                        colorvec = g_colors,
+                                        sparsity = g_jac_prot)
 
-        return sol
-    end
+
+    j!(g_jac,rand(n))                                    
+    display(g_jac)
+    g0 = rand(n)
+    println("computing consistent initial conditions for pressure") 
+    dg = OnceDifferentiable(g!, j!, g0, g0, g_jac_prot)
+    @time P_0 = nlsolve(dg,g0).zero
+    #@time P_0 = nlsolve(g!,j!,g0,autodiff = :forward).zero #
+    #println(P_0)
+    println("done") 
+
+    u0 = vcat(T_0,P_0)
+    E = spdiagm(0 => vcat(ones(Float64,n),zeros(Float64,n)))
+    DAE = create_DAE_function(f,n) # create DAE function
+    #println(du0)
+    println("start solving")
+    #prob = DAEProblem(DAE,du0,u0,time_interval)
+    #@time sol = solve(prob,IDA(),dt=0.2)
+    FF= ODEFunction((du,u,p,t) -> f(du,u),mass_matrix=E,jac_prototype=jac_prot)
+    prob = ODEProblem(FF,u0,time_interval)
+    @time sol = solve(prob,Rodas5(),dt=0.1,adaptive = false)
+    println("done")
+    
+    return sol
 end
+
 
 # Create the timer object
 to = TimerOutput()
 
-n           = 1000
+n           = 500
 nx          = 300
 n_fine      = n÷5
 n_coarse    = n - n_fine
@@ -300,14 +329,17 @@ x_0     = zeros(Float64, n*2)
 x_0[1]  = bc_bott
 
 @timeit to "system assembling" sys     = new_assemble_nonlinear_system(grid, bc_bott, bc_top)
+steady_sol = steady_solution(sys,n,bc_bott,bc_top)
+
+
 
 T_0      = LinRange(0.5,0.0,n)
-solution = get_time_solution(sys, T_0, (0.0,t_end));
+#solution = get_time_solution(sys, T_0, (0.0,t_end));
 
-display(solution)
-println("\n Performance report:")
-display(to)
+#display(solution)
+#println("\n Performance report:")
+#display(to)
 
 # create_animatrion(solution,grid,t_end,"regular_grid_FV_solver/1D_nonlinear.gif")
-
-plot_results(grid, solution[28], nx)
+println(steady_sol)
+plot_results(grid, steady_sol, nx)
