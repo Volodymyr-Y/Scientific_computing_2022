@@ -2,7 +2,7 @@ using PyPlot
 using PyCall
 @pyimport matplotlib.animation as animation
 
-function plot_results(grid, solution, nx; savepdf = false, projection = "2d")
+function plot_results(grid, solution, nx, filename; savepdf = false, projection = "2d")
 
     function meshgrid(xin, yin)
         nx  =   length(xin)
@@ -47,7 +47,7 @@ function plot_results(grid, solution, nx; savepdf = false, projection = "2d")
         xlabel("y-dimension (-)")
         zlabel("temperature (-)")
        
-        savefig("temperature.pdf")
+        savefig("T"*filename*".pdf")
 
         clf()
         fig_2 = figure()
@@ -61,7 +61,7 @@ function plot_results(grid, solution, nx; savepdf = false, projection = "2d")
         xlabel("y-dimension (-)")
         zlabel("pressure (-)")
 
-        savefig("pressure.pdf")
+        savefig("P"*filename*".pdf")
 
     elseif projection == "2d"
         
@@ -97,6 +97,40 @@ function plot_results(grid, solution, nx; savepdf = false, projection = "2d")
     return fig_1, fig_2
 end
 
+function plot_flux(xx, yy,fluxY, fluxX; scaler = true, save = true)
+    clf()
+    fig, ax = subplots()
+    ax.set_title("water mass flux (q)")
+  
+    if scaler
+      scaler_mult =  vcat(LinRange(1, 2, 40)) .* ones(40, 60)
+      Q = ax.quiver(xx[1:25:end, 1:5:end], yy[1:25:end, 1:5:end], fluxX[1:25:end, 1:5:end], (scaler_mult.*fluxY[1:25:end, 1:5:end])./2.0, (scaler_mult.*fluxY[1:25:end, 1:5:end])./2.0, units = "height", cmap = cmap=PyPlot.cm.coolwarm)
+  
+    else 
+      Q = ax.quiver(xx[1:25:end, 1:5:end], yy[1:25:end, 1:5:end], fluxX[1:25:end, 1:5:end], fluxY[1:25:end, 1:5:end], fluxY[1:25:end, 1:5:end], units = "height", cmap = cmap=PyPlot.cm.coolwarm)
+    end
+  
+    # qk = ax.quiverkey(Q, 0.9, 0.9, 2, "water mass flux", labelpos="E",
+    #                    coordinates="figure")
+  
+  
+  
+    cm = PyPlot.cm.coolwarm
+  
+    sm = PyPlot.cm.ScalarMappable(cmap=cm)
+    sm.set_array([minimum(fluxY), maximum(fluxY)])
+  
+    colorbar(sm)
+  
+    # ax.set_aspect("equal")
+  
+    xlabel("x-dimension (-)")
+    ylabel("y-dimension (-)")
+  
+    if save
+      savefig("flux.pdf")
+    end
+end
 
 function animate_solution(grid, solution, nx; specie = "temperature", projection = "2d")
     
@@ -145,3 +179,4 @@ function animate_solution(grid, solution, nx; specie = "temperature", projection
     gif = animation.FuncAnimation(fig, animation_frame, frames=100, interval=10, blit= false)
     gif[:save]("animation.gif", bitrate=-1, extra_args=["-vcodec", "libx264", "-pix_fmt", "yuv420p"])
 end
+
