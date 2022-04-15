@@ -9,7 +9,9 @@ using NLsolve
 using BenchmarkTools
 using TimerOutputs
 using DelimitedFiles
-include("plotting.jl")
+
+GLMakie.activate!()
+#include("plotting.jl")
 
 function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Number)
     N = (n_y,n_x)
@@ -28,40 +30,32 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
 
     function ∇_left(u)
         u1 = zeros(typeof(u[1]),N)
-        for i in 2:N[1]
-            for j in 1:N[2]
-                u1[i,j] = u[i-1,j]-u[i,j] 
-            end    
-        end
+        for j in 2:N[2]
+            u1[:,j] = u[:,j-1]-u[:,j] 
+        end    
         return u1 ./ h_top
     end
 
     function ∇_right(u)
         u1 = zeros(typeof(u[1]),N)
-        for i in 1:N[1]-1
-            for j in 1:N[2]
-                u1[i,j] = u[i+1,j]-u[i,j] 
-            end
+        for j in 1:N[2]-1
+            u1[:,j] = u[:,j+1]-u[:,j] 
         end
         return u1 ./ h_bottom
     end
 
     function ∇_bottom(u)
         u1 = zeros(typeof(u[1]),N)
-        for j in 2:N[2]
-            for i in 1:N[1]
-                u1[i,j] = u[i,j-1]-u[i,j] 
-            end    
+        for i in 2:N[1]
+            u1[i,:] = u[i-1,:]-u[i,:] 
         end
         return u1 ./ h_left
     end
 
     function ∇_top(u)
         u1 = zeros(typeof(u[1]),N)
-        for j in 1:N[2]-1
-            for i in 1:N[1]
-                u1[i,j] = u[i,j+1]-u[i,j] 
-            end
+        for i in 1:N[1]-1
+            u1[i,:] = u[i+1,:]-u[i,:] 
         end
         return u1 ./ h_right
     end
@@ -158,7 +152,7 @@ grid1y = LinRange(0.0,2.0,n_fine)
 grid2y = LinRange(2.0,150.0,n_coarse+1)[2:end]
 gridy = reverse(vcat(grid1y,grid2y)) #Uncomment this for nonuniform grid but also comment uniform one (does not work yet)
 gridx = LinRange(0,300.0,n_x)
-#gridy = reverse(LinRange(0,150.0,n_y)) #uniform grid
+gridy = reverse(LinRange(0,150.0,n_y)) #uniform grid
 
 gridX = gridx'.*ones(n_y)
 gridY = ones(n_x)'.*gridy
@@ -187,7 +181,7 @@ pressure = reshape(steady_state_solution[n_x*n_y+1:end],(n_y,n_x))
 fig = Figure()
 println("Solution obtained, start plotting")
 ax = Axis3(fig[1,1]; aspect=(1, 1, 1),xlabel = "x",ylabel = "y",zlabel = "pressure")
-hm = surface!(ax,gridX, gridY, Temperature )
+hm = surface!(ax,gridX, gridY, pressure )
 Colorbar(fig[1, 2],hm )
 display(fig)
 
