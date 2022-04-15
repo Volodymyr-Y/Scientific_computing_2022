@@ -36,14 +36,6 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Numbe
         return u1 .* h_left ./ h_bottom
     end
 
-    #function ∇_left(u)
-    #    u1 = zeros(typeof(u[1]),N)
-    #    for j in 2:N[2]
-    #        u1[i,j] = (u[i,j-1]-u[i,j])./h_x[i,j] *(h_y[i,j] + h_y[i,j])/2
-    #    end    
-    #    return u1
-    #end
-
     function ∇_right(u)
         u1 = zeros(typeof(u[1]),N)
         for j in 1:N[2]-1
