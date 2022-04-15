@@ -159,8 +159,8 @@ gridX = gridx'.*ones(n_y)
 gridY = ones(n_x)'.*gridy
 
 bc_bott = 0.5
-bc_top = 0.0
-t_end = 10.0
+bc_top  = 0.0
+t_end   = 10.0
 
 #defining system
 sys = new_assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top)

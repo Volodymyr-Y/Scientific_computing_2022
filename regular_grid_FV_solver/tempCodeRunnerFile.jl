@@ -1,0 +1,6 @@
+fig = Figure()
+println("Solution obtained, start plotting")
+ax = Axis3(fig[1,1]; aspect=(1, 1, 1),xlabel = "x",ylabel = "y",zlabel = "pressure")
+hm = surface!(ax,gridX, gridY, Temperature )
+Colorbar(fig[1, 2],hm )
+display(fig)
