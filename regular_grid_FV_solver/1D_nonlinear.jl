@@ -356,7 +356,7 @@ grid2 = LinRange(2.0,150.0,n_coarse+1)[2:end]
 grid  = vcat(grid1,grid2)
 
 bc_top  = 0.0
-bc_bott = 10.0
+bc_bott = 2.0
 t_end   = 10.0
 
 x_0     = zeros(Float64, n*2)
@@ -385,7 +385,7 @@ headingText()
     sys!(placeholder,rand(2*n))
 end
 
-T_0 = LinRange(0.5,0.0,n)
+T_0 = LinRange(bc_bott,0.0,n)
 time_solution = get_time_solution(sys!,T_0, (0.0,t_end))
 
 
@@ -406,11 +406,11 @@ display(time_solution)
 println("\n Performance report:")
 display(to)
 
-# plot_flux(xx, yy,fluxY, fluxX; save = true)
+plot_flux(xx, yy,fluxY, fluxX; save = true)
 
 # plot_results(grid, solution(0), nx; savepdf = true, projection = "3d")
 
 # Work in progress. In the meanwhile, I'll export the solution as csv and animate the plot in Python (easiest solution)
 #
 # animate_solution(grid, solution, nx; specie = "temperature", projection = "2d")
-writedlm("T_10.csv",  time_solution, ',')
+# writedlm("T_2.csv",  time_solution, ',')

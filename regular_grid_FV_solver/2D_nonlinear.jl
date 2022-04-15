@@ -13,51 +13,54 @@ using DelimitedFiles
 GLMakie.activate!()
 #include("plotting.jl")
 
-function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Number)
-    N = (n_y,n_x)
-    λ = 0.01
-    c = 0.001
-    α = 0.01
-    k = 100.0
-    ρ_ref = 1.0
-    ϵ = 10.0^(-6)
-    h_x = gridX[:,2:N[2]] - gridX[:,1:N[2]-1]     
-    h_y = gridY[1:(N[1]-1),:] - gridY[2:N[1],:]  
-    h_top = vcat(h_y[1,:]',h_y) # array of distances between collocation points of size N shifted to the top
-    h_bottom = vcat(h_y,h_y[end,:]')  # array of distances between collocation points of size N shifted to the bottom
-    h_left = hcat(h_x[:,1],h_x) # array of distances between collocation points of size N shifted to the left
-    h_right = hcat(h_x,h_x[:,end])  # array of distances between collocation points of size N shifted to the right
-
-    function ∇_left(u)
-        u1 = zeros(typeof(u[1]),N)
-        for j in 2:N[2]
+function new_assemble_nonlinear_system(gridX, gridY, bc_bott::Number, bc_top::Number)
+    
+    N       = (n_y, n_x)
+    λ       = 0.01
+    c       = 0.001
+    α       = 0.01
+    k       = 100.0
+    ρ_ref   = 1.0
+    ϵ       = 10.0^(-6)
+    
+    h_x = gridX[:, 2:N[2]]     - gridX[:, 1:(N[2]-1)]     
+    h_y = gridY[1:(N[1]-1), :] - gridY[2:N[1], :]  
+    
+    h_left      = vcat(h_y[1,:]', h_y)       
+    h_right     = vcat(h_y, h_y[end,:]')     
+    h_bottom    = hcat(h_x[:,1], h_x)        
+    h_top       = hcat(h_x, h_x[:,end])      
+ 
+    function ∇_left(u) 
+        u1 = zeros(typeof(u[1]),N) 
+        for j in 2:N[2] 
             u1[:,j] = u[:,j-1]-u[:,j] 
-        end    
-        return u1 ./ h_top
-    end
-
-    function ∇_right(u)
-        u1 = zeros(typeof(u[1]),N)
-        for j in 1:N[2]-1
-            u1[:,j] = u[:,j+1]-u[:,j] 
-        end
-        return u1 ./ h_bottom
-    end
-
-    function ∇_bottom(u)
-        u1 = zeros(typeof(u[1]),N)
-        for i in 2:N[1]
-            u1[i,:] = u[i-1,:]-u[i,:] 
-        end
-        return u1 ./ h_left
-    end
-
-    function ∇_top(u)
-        u1 = zeros(typeof(u[1]),N)
-        for i in 1:N[1]-1
-            u1[i,:] = u[i+1,:]-u[i,:] 
-        end
-        return u1 ./ h_right
+        end     
+        return u1 ./ h_left  
+    end 
+ 
+    function ∇_right(u) 
+        u1 = zeros(typeof(u[1]),N) 
+        for j in 1:N[2]-1 
+            u1[:,j] = u[:,j+1]-u[:,j]  
+        end 
+        return u1 ./ h_right 
+    end 
+ 
+    function ∇_bottom(u) 
+        u1 = zeros(typeof(u[1]),N) 
+        for i in 2:N[1] 
+            u1[i,:] = u[i-1,:]-u[i,:]  
+        end 
+        return u1 ./ h_bottom 
+    end 
+ 
+    function ∇_top(u) 
+        u1 = zeros(typeof(u[1]),N) 
+        for i in 1:N[1]-1 
+            u1[i,:] = u[i+1,:]-u[i,:]  
+        end 
+        return u1 ./ h_top 
     end
 
     function L(u)
@@ -144,22 +147,25 @@ function newton(A,b,u0; tol=1.0e-8, maxit=100)
     throw("convergence failed")
 end
 
-n_x = 10
-n_y = 100
-n_fine = n_y÷3
-n_coarse = n_y - n_fine
-grid1y = LinRange(0.0,2.0,n_fine)
-grid2y = LinRange(2.0,150.0,n_coarse+1)[2:end]
-gridy = reverse(vcat(grid1y,grid2y)) #Uncomment this for nonuniform grid but also comment uniform one (does not work yet)
-gridx = LinRange(0,300.0,n_x)
-gridy = reverse(LinRange(0,150.0,n_y)) #uniform grid
+n_x         = 10
+n_y         = 100
+n_fine      = n_y÷3
+n_coarse    = n_y - n_fine
+
+grid1y      = LinRange(0.0, 2.0,  n_fine)
+grid2y      = LinRange(2.0, 150.0,n_coarse+1)[2:end]
+gridy       = reverse(vcat(grid1y, grid2y)) #Uncomment this for nonuniform grid but also comment uniform one (does not work yet)
+# gridy       = reverse(LinRange(0, 150.0,n_y)) #uniform grid 
+
+gridx       = LinRange(0, 300.0, n_x)
+
 
 gridX = gridx'.*ones(n_y)
 gridY = ones(n_x)'.*gridy
 
 bc_bott = 0.5
-bc_top = 0.0
-t_end = 10.0
+bc_top  = 0.0
+t_end   = 10.0
 
 #defining system
 sys = new_assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top)
