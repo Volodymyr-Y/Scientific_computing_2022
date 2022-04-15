@@ -9,6 +9,7 @@ using NLsolve
 using BenchmarkTools
 using SparseDiffTools
 using FiniteDiff
+using DelimitedFiles
 using TimerOutputs
 
 function plot_results(grid,solution,filename)
@@ -354,8 +355,8 @@ grid1 = LinRange(0.0,2.0,n_fine)
 grid2 = LinRange(2.0,150.0,n_coarse+1)[2:end]
 grid  = vcat(grid1,grid2)
 
-bc_bott = 0.5
 bc_top  = 0.0
+bc_bott = 10.0
 t_end   = 10.0
 
 x_0     = zeros(Float64, n*2)
@@ -412,4 +413,4 @@ display(to)
 # Work in progress. In the meanwhile, I'll export the solution as csv and animate the plot in Python (easiest solution)
 #
 # animate_solution(grid, solution, nx; specie = "temperature", projection = "2d")
-# writedlm("solution.csv",  solution, ',')
+writedlm("T_10.csv",  time_solution, ',')
