@@ -175,28 +175,23 @@ legend('$\lambda$ = 0.001', '$\lambda$ = 0.1', '$\lambda$ = 1', '$\lambda$ = 10'
 
 %% Mesh plot
 
-load('yy.mat')
+% load('yy.mat')
 
 Nx  = 45;
-Ny  = 96;
-zero = zeros(1, Ny*Nx);
-
+Ny  = 100;
+zero = zeros(Nx, Ny);
 
 xx  = linspace(0, 300, Nx);
 
 [gridX, gridY] = meshgrid(xx, yy);
 
-T = delaunay(gridX, gridY);
-
-TO = triangulation(T,gridX(:), gridY(:), zero(:));
-
-trimesh(TO, 'EdgeColor', '#8E8E8E')
+surf(gridX, gridY, zero.', 'EdgeColor', '#8E8E8E', 'EdgeAlpha', 0.9)
 view(2)
 
 ylabel('y-direction', 'Interpreter','latex')
 xlabel('x-direction', 'Interpreter','latex')
 
-
+colormap white
 
 % 
 % set(gcf, 'Renderer', 'painters')
