@@ -1,19 +1,20 @@
-using CairoMakie
+#using CairoMakie
 using SparseArrays
 using ForwardDiff
 using LinearAlgebra
 using DifferentialEquations
-using GLMakie
+#using GLMakie
 using Sundials
 using NLsolve
 using BenchmarkTools
 using TimerOutputs
 using DelimitedFiles
 
-GLMakie.activate!()
-#include("plotting.jl")
+pygui(true)
+#GLMakie.activate!()
+include("plotting_2D.jl")
 
-function new_assemble_nonlinear_system(gridX,gridY,bc_bott::Number,bc_top::Number)
+function new_assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top)
     N = (n_y,n_x)
     λ = 0.01
     c = 0.001
@@ -150,10 +151,8 @@ n_fine = n_y÷2
 n_coarse = n_y - n_fine
 grid1y = LinRange(0.0,2.0,n_fine)
 grid2y = LinRange(2.0,150.0,n_coarse+1)[2:end]
-gridy = reverse(vcat(grid1y,grid2y)) #Uncomment this for nonuniform grid but also comment uniform one (does not work yet)
+gridy = reverse(vcat(grid1y,grid2y)) 
 gridx = LinRange(0,300.0,n_x)
-#gridy = reverse(LinRange(0,150.0,n_y)) #uniform grid
-
 
 gridX = gridx'.*ones(n_y)
 gridY = ones(n_x)'.*gridy
@@ -179,107 +178,4 @@ steady_state_solution,res = newton(sys,b,x_0)
 Temperature = reshape(steady_state_solution[1:n_x*n_y],(n_y,n_x))
 pressure = reshape(steady_state_solution[n_x*n_y+1:end],(n_y,n_x))
 
-fig = Figure()
-println("Solution obtained, start plotting")
-ax = Axis3(fig[1,1]; aspect=(1, 1, 1),xlabel = "x",ylabel = "y",zlabel = "pressure")
-hm = surface!(ax,gridX, gridY, pressure )
-Colorbar(fig[1, 2],hm )
-display(fig)
-
-###TIMEDEPENDENT_PROBLEM###
-# """
-# Creates a DAE system f(du,u,p,t) = 0
-# """
-# function create_DAE_function(f,n) 
-#     E = spdiagm(0 => vcat(ones(Float64,n),zeros(Float64,n)))
-    
-#     function DAE(du,u,p,t)
-#         return E*du - f(u)
-#     end
-    
-#     return DAE
-# end
-
-# function create_constraint_function(f,x)
-#     n = length(x)
-    
-#     function a(y)
-#         z = vcat(x,y)
-#         return f(z)[n+1:end]
-#     end
-    
-#     return a
-# end
-
-# function get_time_solution(f, T_0, time_interval)
-
-#     println("Solver initialized")
-
-#     @timeit to "system solution" begin
-#         n   = length(T_0) 
-#         DAE = create_DAE_function(f,n)     
-#         g   = create_constraint_function(f, T_0)
-
-#         write(stdin.buffer, 0x0C)
-#         println("\t Computing consistent initial conditions for pressure") 
-#         @timeit to "newton's method" P_0 = newton(g,zeros(Float64,n),zeros(Float64,n); tol=1.0e-8, maxit=100)[1]
-#         u0  = vcat(T_0, P_0)
-#         du0 = f(u0)
-
-#         println("\n\t Solving DAE...")
-
-#         @timeit to "DAE solver" begin
-#             @timeit to "assmebling" prob = DAEProblem(DAE, du0, u0, time_interval)
-#             @timeit to "solving" sol  = solve(prob, IDA(), dt=0.1; verbose = true)
-#         end
-        
-#         println("\nSolution available. Summary and solution:\n")
-
-#         return sol
-#     end
-# end
-
-# # Create the timer object
-# to = TimerOutput()
-
-# function headingText()
-#     println("
-#             ╔═══╦═══╦═══╦═══╦═══╗
-#             ║╔═╗║╔═╗║╔═╗║╔═╗║╔══╝
-#             ║║─╚╣║─║║╚══╣╚══╣╚══╗
-#             ║║─╔╣║─║╠══╗╠══╗║╔══╝
-#             ║╚═╝║╚═╝║╚═╝║╚═╝║╚══╗
-#             ╚═══╩═══╩═══╩═══╩═══╝\n")
-
-#     println("FVM-based solver of a heat and mass transfer problem in a porous medium\n")
-#     println("Grid size: ($(n_x) x $(n_y))")
-#     println("Temporal domain: (0, $(t_end)) s \n")
-# end
-
-# headingText()
-
-# T_0 = x_T_0
-# t_end = 1
-# solution = get_time_solution(sys, T_0, (0.0,t_end));
-
-# display(solution)
-# println("\n Performance report:")
-# display(to)
-
-# solution_at_t = solution(0.01)
-
-# Temperature = reshape(solution_at_t[1:n_x*n_y],(n_y,n_x))
-# pressure = reshape(solution_at_t[n_x*n_y+1:end],(n_y,n_x))
-
-# fig = Figure()
-# println("Solution obtained, start plotting")
-# ax = Axis3(fig[1,1]; aspect=(1, 1, 1),xlabel = "x",ylabel = "y",zlabel = "pressure")
-# hm = surface!(ax,gridX, gridY, Temperature )
-# Colorbar(fig[1, 2],hm )
-# display(fig)
-
-# # Work in progress. In the meanwhile, I'll export the solution as csv and animate the plot in Python (easiest solution)
-# #
-# # animate_solution(grid, solution, nx; specie = "temperature", projection = "2d")
-
-# writedlm("solution.csv",  solution, ',')
+plot_results(gridX, gridY,Temperature,pressure,"Test",savepdf = true,projection = "3d")
