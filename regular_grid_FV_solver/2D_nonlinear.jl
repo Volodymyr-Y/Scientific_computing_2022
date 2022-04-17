@@ -1,20 +1,83 @@
-#using CairoMakie
 using SparseArrays
 using ForwardDiff
 using LinearAlgebra
 using DifferentialEquations
-#using GLMakie
 using Sundials
 using NLsolve
 using BenchmarkTools
 using TimerOutputs
 using DelimitedFiles
+using PyPlot
+using PyCall
 
 pygui(true)
-#GLMakie.activate!()
-include("plotting_2D.jl")
 
-function new_assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top)
+function plot_results(gridx, gridy,T,P, filename; savepdf = false, projection = "2d")
+    if projection == "3d"
+
+        clf()
+        fig_1 = figure()
+
+        ax = fig_1.add_subplot(projection="3d")
+
+        plot_surface(gridy, gridx, T, cmap=PyPlot.cm.coolwarm,
+                            linewidth=0, antialiased=false, alpha=0.8)
+
+        ylabel("x-dimension (-)")
+        xlabel("y-dimension (-)")
+        zlabel("temperature (-)")
+       
+        savefig("T"*filename*".pdf")
+
+        clf()
+        fig_2 = figure()
+
+        ax = fig_2.add_subplot(1, 2, 2, projection="3d")
+
+        plot_surface(gridy, gridx, P, rstride=1, cstride=1, cmap=PyPlot.cm.coolwarm,
+                            linewidth=0, antialiased=false, alpha=0.8)
+
+        ylabel("x-dimension (-)")
+        xlabel("y-dimension (-)")
+        zlabel("pressure (-)")
+
+        savefig("P"*filename*".pdf")
+
+    elseif projection == "2d"
+        
+        clf()
+        fig_1 = figure()
+
+        temp = contourf(gridx, gridy, T, cmap=PyPlot.cm.coolwarm, antialiased=false)
+
+        ylabel("x-dimension (-)")
+        xlabel("y-dimension (-)")
+
+        fig_1.colorbar(temp)
+       
+        if savepdf
+            savefig("temperature.pdf")
+        end
+
+        #clf()
+        fig_2 = figure()
+
+        pres = contourf(gridx, gridy, P, cmap=PyPlot.cm.coolwarm, antialiased=false)
+
+        ylabel("x-dimension (-)")
+        xlabel("y-dimension (-)")
+        
+        fig_2.colorbar(pres)
+        
+        if savepdf
+            savefig("pressure.pdf")
+        end
+
+    end
+    return fig_1, fig_2
+end
+
+function new_assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top;heating_from_left = false)
     N = (n_y,n_x)
     λ = 0.01
     c = 0.001
@@ -111,10 +174,14 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top)
         F1[end,:] += (1/ϵ) * T[end,:] .- (1/ϵ) * bc_bott
         F1[1,:] += (1/ϵ) * T[1,:] .- (1/ϵ) * bc_top
 
+        if heating_from_left
+            F1[:,1] += (1/ϵ) * T[:,1] .- (1/ϵ) .* (0.5 .- gridy./300)
+        end
+
         F2 = (∇_left(P)+∇_right(P)+∇_top(P)+∇_bottom(P) )+
         α*(h_bottom.*B(T)-h_top.*North(T))
 
-        F2[1,:] += (1/ϵ) * P[1,:] 
+        F2[1,:] += (1/ϵ) * P[1,:] .- (1/ϵ) * bc_top
 
         F1 = reshape(F1,N[1]*N[2])
         F2 = reshape(F2,N[1]*N[2])
@@ -145,24 +212,31 @@ function newton(A,b,u0; tol=1.0e-8, maxit=100)
     throw("convergence failed")
 end
 
-n_x = 10
+n_x = 20
 n_y = 50
 n_fine = n_y÷2
 n_coarse = n_y - n_fine
+
 grid1y = LinRange(0.0,2.0,n_fine)
 grid2y = LinRange(2.0,150.0,n_coarse+1)[2:end]
 gridy = reverse(vcat(grid1y,grid2y)) 
-gridx = LinRange(0,300.0,n_x)
 
-gridX = gridx'.*ones(n_y)
-gridY = ones(n_x)'.*gridy
+gridx = LinRange(0.0,300.0,n_x)
+
+gridX = gridx'.*ones(size(gridy))
+gridY = ones(size(gridx))'.*gridy
 
 bc_bott = 0.5
 bc_top  = 0.0
-t_end   = 10.0
+
+#some exotic boundary conditions
+
+#bc_bott = sin.(2*pi/300*gridx)
+#bc_bott = 0.5 .- (gridx.-150.0).^2/150.0^2/2
+#bc_bott = 0.5 .- gridx/600
 
 #defining system
-sys = new_assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top)
+sys = new_assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top,heating_from_left = false)
 
 #creating initial guess for steady_state_solution
 x_T_0 = zeros(Float64,(n_y,n_x))
@@ -178,4 +252,4 @@ steady_state_solution,res = newton(sys,b,x_0)
 Temperature = reshape(steady_state_solution[1:n_x*n_y],(n_y,n_x))
 pressure = reshape(steady_state_solution[n_x*n_y+1:end],(n_y,n_x))
 
-plot_results(gridX, gridY,Temperature,pressure,"Test",savepdf = true,projection = "3d")
+plot_results(gridX, gridY,Temperature,pressure,"put_a_nice_filename_here",savepdf = true,projection = "3d")
