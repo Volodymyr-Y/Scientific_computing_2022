@@ -87,10 +87,10 @@ function new_assemble_nonlinear_system(gridX,gridY,bc_bott,bc_top;heating_from_l
     ϵ = 10.0^(-6)
     h_x = gridX[:,2:N[2]] - gridX[:,1:N[2]-1]     
     h_y = gridY[1:(N[1]-1),:] - gridY[2:N[1],:]  
-    h_left = vcat(h_y[1,:]',h_y) # array of distances between collocation points of size N shifted to the top
-    h_right = vcat(h_y,h_y[end,:]')  # array of distances between collocation points of size N shifted to the bottom
-    h_bottom = hcat(h_x[:,1],h_x) # array of distances between collocation points of size N shifted to the left
-    h_top = hcat(h_x,h_x[:,end])  # array of distances between collocation points of size N shifted to the right
+    h_left = vcat(h_y[1,:]',h_y) 
+    h_right = vcat(h_y,h_y[end,:]')  
+    h_bottom = hcat(h_x[:,1], h_x)
+    h_top = hcat(h_x,h_x[:, end])  
 
     function ∇_left(u)
         u1 = zeros(typeof(u[1]),N)
